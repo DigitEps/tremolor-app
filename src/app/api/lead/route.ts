@@ -23,7 +23,14 @@ export async function POST(req: Request) {
     const FROM = process.env.FROM_EMAIL || "no-reply@tremolor.app";
     const REPORT_URL = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/informe` : undefined;
 
+    console.log("[LEAD] Configuration check:", {
+      hasSendGridKey: !!SG,
+      fromEmail: FROM,
+      reportUrl: REPORT_URL
+    });
+
     if (SG) {
+      console.log("[LEAD] Attempting to send email via SendGrid...");
       try {
         const sgMail = (await import("@sendgrid/mail")).default;
         sgMail.setApiKey(SG);
@@ -59,6 +66,7 @@ export async function POST(req: Request) {
         };
 
         await sgMail.send(msg);
+        console.log("[LEAD] ✅ Email sent successfully to:", email);
         
         // Schedule follow-up emails (you could implement this with a queue system)
         // For now, we'll just log the intent
@@ -69,15 +77,34 @@ export async function POST(req: Request) {
           queued: true,
           message: "Professional report email sent successfully"
         });
-      } catch (e) {
-        console.error("SendGrid error:", e);
-        return NextResponse.json({ ok: true, queued: false });
+      } catch (e: any) {
+        console.error("[LEAD] ❌ SendGrid error:", {
+          message: e?.message,
+          code: e?.code,
+          response: e?.response?.body
+        });
+        return NextResponse.json({
+          ok: true,
+          queued: false,
+          error: "sendgrid_error",
+          details: e?.message
+        });
       }
     }
 
-    // No SendGrid API key - still return success for UI
-    console.log("[LEAD] No SendGrid API key configured");
-    return NextResponse.json({ ok: true, queued: false, reason: "no_sendgrid" });
+    // No SendGrid API key - still return success for UI but log warning
+    console.warn("[LEAD] ⚠️ No SendGrid API key configured - emails will not be sent");
+    console.log("[LEAD] To fix this:");
+    console.log("1. Get API key from https://app.sendgrid.com/settings/api_keys");
+    console.log("2. Add SENDGRID_API_KEY to your .env.local file");
+    console.log("3. Add FROM_EMAIL with a verified sender email");
+    
+    return NextResponse.json({
+      ok: true,
+      queued: false,
+      reason: "no_sendgrid",
+      message: "Email configuration missing - check server logs"
+    });
   } catch (e) {
     console.error("Lead error:", e);
     // Always return 200 so UI doesn't regress gating
