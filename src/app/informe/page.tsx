@@ -5,36 +5,139 @@ import { useRouter } from "next/navigation";
 type Answer = {
   partKey: string;
   question: string;
-  response?: string;
-  dominant?: string;
-  createdAt?: string; // ISO
+  response: string;
+  dominant: string;
+  createdAt: string;
 };
 
-function normalize(s?: string) {
-  return (s || "").toLowerCase().normalize("NFC");
+function norm(s?: string) { return (s ?? "").toLowerCase().normalize("NFC"); }
+function trimLen(s: string, n = 140) { const t = (s || "").trim(); return t.length > n ? t.slice(0, n-1) + "…" : t; }
+function escapeMd(s: string) {
+  return (s || "")
+    .replace(/\|/g, "\\|")
+    .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\r?\n/g, " "); // single line in tables/lists
 }
-
-function findLastByQuestion(answers: Answer[], fragment: string) {
-  const f = normalize(fragment);
+function pickLast(answers: Answer[], qFrag: string) {
+  const f = norm(qFrag);
   for (let i = answers.length - 1; i >= 0; i--) {
-    const q = normalize(answers[i]?.question);
-    if (q.includes(f)) return answers[i];
+    if (norm(answers[i]?.question).includes(f)) return answers[i]?.response || "";
   }
-  return undefined;
+  return "";
 }
-
 function statsFrom(answers: Answer[]) {
   const total = 15;
   const completed = answers?.length || 0;
   const progress = Math.round((completed / total) * 100);
   const counts: Record<string, number> = {};
-  answers.forEach(a => {
-    const k = (a?.dominant || "").toLowerCase();
-    counts[k] = (counts[k] || 0) + 1;
-  });
-  const dominantVoice = Object.entries(counts).sort((a,b) => b[1]-a[1])[0]?.[0] || "—";
-  return { progress, dominantVoice, counts };
+  answers.forEach(a => { const k = (a?.dominant || "").toLowerCase(); counts[k] = (counts[k] || 0) + 1; });
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const dominantVoice = entries[0]?.[0] || "—";
+  const percent = (k: string) => Math.round(((counts[k] || 0) / (answers.length || 1)) * 100);
+  return { progress, completed, dominantVoice, counts, percent };
 }
+
+function buildPreviewMd(answers: Answer[]) {
+  const st = statsFrom(answers);
+  const mask = trimLen(escapeMd(pickLast(answers, "màscara")));
+  const loop = trimLen(escapeMd(pickLast(answers, "loop")));
+  const fear = trimLen(escapeMd(pickLast(answers, "invisible") || pickLast(answers,"por") || pickLast(answers,"ser descobert")));
+  const control = trimLen(escapeMd(answers.find(a => norm(a.response).includes("control"))?.response || ""));
+
+  return `# Mapa del Tremolor — Vista prèvia
+
+- Progrés: **${st.progress}%**
+- Veu dominant: **${capitalize(st.dominantVoice)}**
+- Respostes: **${st.completed}/15**
+
+## 🧭 Lectura ràpida
+- Màscara: **${mask || "—"}**
+- Cicle d'anestèsia: **${loop || "—"}**
+- Ferida/por central: **${fear || "—"}**
+- Patró de control (Ego): **${control || "—"}**
+
+> Descarrega el **Pla Enriquit (.MD)** per checklist diari, scripts SOS, registre d'hàbits i notes.
+`; }
+
+function buildFullPlanMd(answers: Answer[]) {
+  const st = statsFrom(answers);
+  const mask = trimLen(escapeMd(pickLast(answers, "màscara")));
+  const whoWhenNone = trimLen(escapeMd(pickLast(answers, "ningú mira")));
+  const loop = trimLen(escapeMd(pickLast(answers, "loop")));
+  const direction = trimLen(escapeMd(pickLast(answers, "direcció")));
+  const fear = trimLen(escapeMd(pickLast(answers, "invisible") || pickLast(answers,"por") || pickLast(answers,"ser descobert")));
+  const control = trimLen(escapeMd(answers.find(a => norm(a.response).includes("control"))?.response || ""));
+
+  return `# Tremolor — Pla Enriquit de 7 dies (personalitzat)
+
+Progrés: **${st.progress}%** · Veu dominant: **${capitalize(st.dominantVoice)} (${st.completed}/15)**
+
+## 🧭 Com llegir el TEU informe
+- **Màscara**: ${mask || "—"}
+- **Cicle d'anestèsia**: ${loop || "—"}
+- **Ferida central**: ${fear || "—"}
+- **Patró de control (Ego)**: ${control || "—"}
+
+### Context
+- Quan ningú mira ets: **${whoWhenNone || "—"}**
+- Sense direcció → **${direction || "—"}**
+
+---
+
+## ✅ Pla de 7 dies
+
+### Dia 1 — Identitat i límits
+- [ ] Avui, **1 NO petit** on diries sí.
+- [ ] Nota de màscara: "${mask || "—"}".
+- [ ] **Respiració 4-4-6** 3'.
+
+### Dia 2 — Trencar el loop
+- [ ] **24 h** sense fumar/beure.
+- [ ] Regla **10'** + 5 cicles **4-4-6** + **caminar 10'**.
+- [ ] Nom curt del loop: "${loop || "—"}".
+
+### Dia 3 — Límit amb algú clau
+- [ ] **1 límit en 1 frase** (amable i ferm).
+- [ ] **Recompensa sana** després.
+
+### Dia 4 — Escassetat fora
+- [ ] Neteja d'**1 objecte-àncora** del passat.
+- [ ] **Finances 20'**: una acció (cancel·lar/ajustar/estalviar).
+
+### Dia 5 — Direcció i far
+- [ ] Escriu **frase far** (1 línia).
+- [ ] **Pas de 15'** que t'hi acosta (agenda'l avui).
+
+### Dia 6 — Visibilitat sana
+- [ ] Acte de **visibilitat** (missatge honest / demanar ajuda).
+- [ ] Recordatori: "${fear || "—"}".
+
+### Dia 7 — Tancament i hàbit mínim
+- [ ] Revisió (3 línies).
+- [ ] **Llindar mínim** 7 dies (2' escriure / 10' caminar).
+
+---
+
+## 🆘 Scripts SOS
+- **Si** urgeix fumar/beure **aleshores** temporitzador 10' + 4-4-6 ×5 + caminar 10'.
+- **Si** sents **invisibilitat** **aleshores** missatge honest a algú de confiança.
+- **Si** urges **control** **aleshores** **delega 1 detall** i registra què passa.
+
+## 🗓️ Registre d'hàbits — 7 dies
+| Dia | Acció clau | Fet |
+| --- | ---------- | --- |
+| 1 | NO + 4-4-6 |   |
+| 2 | 24h + regla 10' |   |
+| 3 | Límit 1 frase |   |
+| 4 | Ordre + finances |   |
+| 5 | Pas 15' |   |
+| 6 | Visibilitat |   |
+| 7 | Revisió + hàbit mínim |   |
+
+> **Pas més petit > perfecció.** Usa el tremolor com a brúixola.
+`; }
+
+function capitalize(s: string) { return s ? s[0].toUpperCase()+s.slice(1) : s; }
 
 const PARTS = [
   "Part I - Qui ets?",
@@ -51,14 +154,6 @@ const byNewest = (a?: string, b?: string) => {
   const tb = b ? Date.parse(b) : 0;
   return tb - ta;
 };
-const norm = (v?: string) => {
-  if (!v) return null;
-  const s = v.toLowerCase().trim();
-  if (["ombra","shadow"].includes(s)) return "ombra";
-  if (["ego"].includes(s)) return "ego";
-  if (["tu","you"].includes(s)) return "tu";
-  return null;
-};
 const has = (text?: string, kws: string[] = []) => {
   if (!text) return false;
   const s = text.toLowerCase();
@@ -67,18 +162,6 @@ const has = (text?: string, kws: string[] = []) => {
 const snippet = (s?: string, n=200) =>
   (s || "").replace(/\s+/g," ").trim().slice(0,n) + ((s || "").length > n ? "…" : "");
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-
-// Try to pull a concrete phrase from user answers for personalization
-const pickFromAnswers = (answers: Answer[], kws: string[], n=140) => {
-  for (const a of answers) {
-    const t = `${a.question} ${a.response || ""}`.toLowerCase();
-    if (kws.some(k => t.includes(k.toLowerCase()))) {
-      const raw = a.response || a.question;
-      return (raw || "").replace(/\s+/g," ").trim().slice(0,n);
-    }
-  }
-  return "";
-};
 
 export default function InformePage() {
   const router = useRouter();
@@ -137,14 +220,11 @@ export default function InformePage() {
     return [...map.values()];
   }, [raw]);
 
-  // Global metrics
-  const counts = { ombra:0, ego:0, tu:0 } as Record<"ombra"|"ego"|"tu", number>;
-  answers.forEach(a => { const d = norm(a.dominant); if (d) counts[d]++; });
-  const total = PARTS.length*TOTAL_PER_PART;
-  const progress = Math.round((answers.length/total)*100);
-  const domEntry = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0] as [("ombra"|"ego"|"tu"), number] | undefined;
-  const dominantVoice = domEntry?.[0] ?? "—";
-  const dominantCount = domEntry?.[1] ?? 0;
+  // Global metrics using new statsFrom
+  const stats = statsFrom(answers);
+  const progress = stats.progress;
+  const dominantVoice = stats.dominantVoice;
+  const dominantCount = stats.counts[stats.dominantVoice] || 0;
 
   // Grouped answers
   const grouped = useMemo(() => {
@@ -165,182 +245,9 @@ export default function InformePage() {
   const touchBottom     = has(textAll, ["tocar fons","toco fons","col·lapse"]);
   const fearLoseAll     = has(textAll, ["perdria tot","perdre-ho tot","ho perdré tot"]);
 
-  // ---------- Markdown builders ----------
-  // Enhanced Preview (free: copy/print)
-  const buildPreviewMD = () => {
-    const stats = statsFrom(answers);
-    
-    // Find specific user responses for personalization
-    const maskAnswer = findLastByQuestion(answers, "màscara") || findLastByQuestion(answers, "personatge");
-    const familyAnswer = findLastByQuestion(answers, "familiar") || findLastByQuestion(answers, "assembles");
-    const directionAnswer = findLastByQuestion(answers, "direcció") || findLastByQuestion(answers, "última vegada");
-    const fearAnswer = findLastByQuestion(answers, "descobert") || findLastByQuestion(answers, "ser vist");
-    const growthAnswer = findLastByQuestion(answers, "créixer") || findLastByQuestion(answers, "integressis");
-
-    const partLines = (title: string, lines: string[]) =>
-      `\n**${title}**\n\n` + lines.map(l=>`- ${l}`).join("\n") + "\n";
-    const blocks: string[] = [];
-    const section = (title: string, lines: string[]) => blocks.push(partLines(title, lines));
-
-    section("I. Qui ets?", [
-      maskAnswer ? `Màscara detectada: "${snippet(maskAnswer.response, 80)}". Vols límits clars.`
-                 : "Estàs afinant identitat: vols coherència i límits clars.",
-      "Risc: agradar per no ser rebutjat.",
-      "Microacció: avui **1 NO petit** on normalment diries sí.",
-    ]);
-    
-    section("II. D'on véns?", [
-      familyAnswer ? `Patró familiar: "${snippet(familyAnswer.response, 80)}". És memòria de protecció.`
-                   : "Tens trams del passat que encara regulen reaccions.",
-      controlPattern ? "El relat d'escassetat/«guerra» continua actiu de fons."
-                     : "Posa nom als patrons familiars per desactivar-los.",
-      "Microacció: identifica **1 situació** on controles per por i **delega 1 detall**.",
-    ]);
-    
-    section("III. Cap a on vas?", [
-      directionAnswer ? `Sobre direcció vas escriure: "${snippet(directionAnswer.response, 80)}".`
-                      : "Sense direcció clara hi ha dispersió — defineix un far simple.",
-      anesthesiaCycle ? "Has posat nom al **loop d'anestèsia** (nostàlgia→tristesa→fumar/beure)."
-                      : "Microacció: quan vingui l'impuls, **regla 10'** + respiració 4-4-6 + passeig curt.",
-    ]);
-    
-    section("IV. Què tems?", [
-      fearAnswer ? `Por central: "${snippet(fearAnswer.response, 80)}".`
-                 : invisibility ? "Ferida central: **invisibilitat** («no ser vist», «llop solitari»)."
-                                : "La por principal és no ser reconegut en la teva veritat.",
-      "Microacció: **acte de visibilitat** diari (missatge honest o demanar ajuda concreta).",
-    ]);
-    
-    section("V. Com creixes?", [
-      growthAnswer ? `Sobre creixement: "${snippet(growthAnswer.response, 80)}".`
-                   : (touchBottom || fearLoseAll) ? "Creença: «només canvio si **toco fons**» + por a «**perdre-ho tot**»."
-                                                  : "Creixement sostingut > heroïcitats puntuals. La clau és el llindar mínim.",
-      "Microacció: defineix un **llindar mínim** (2' escriptura o 10' caminar) i compleix-lo 7 dies.",
-    ]);
-
-    const loopName = anesthesiaCycle ? "nostàlgia → tristesa → anestèsia (fumar/beure)" : "evitació → dispersió → esgotament";
-    const coreWound = invisibility ? "invisibilitat (et sobre-adaptes per ser vist)" : "rebuig (por a no ser prou)";
-    const keyDefense = controlPattern ? "control (Ego) per por d'escassetat" : "hiperresponsabilitat (Ego) per evitar el caos";
-    const shortestLever = invisibility ? "visibilitat sana + límits petits + substitució d'anestèsia" : "coherència diària + microcompromisos + descans real";
-
-    return (
-`# 🧭 Com llegir el TEU informe
-
-Veu dominant global: **${cap(stats.dominantVoice)} (${stats.counts[stats.dominantVoice] || 0}/15)**
-Progrés: **${stats.progress}%**
-
-## Lectura per parts (telegràfica + 1 microacció)
-` + blocks.join("") + `
-## 🛠️ Resum executiu
-- **Nom del teu bucle**: ${loopName}.
-- **Ferida mare**: ${coreWound}.
-- **Defensa clau**: ${keyDefense}.
-- **Palanca més curta**: ${shortestLever}.
-`
-    );
-  };
-
-  // Enhanced Full Plan (email & gated download)
-  const buildFullPlanMD = () => {
-    const stats = statsFrom(answers);
-    
-    // Find specific user responses for deep personalization
-    const maskAnswer = findLastByQuestion(answers, "màscara") || findLastByQuestion(answers, "personatge");
-    const loopAnswer = findLastByQuestion(answers, "última vegada") || findLastByQuestion(answers, "loop");
-    const invisAnswer = findLastByQuestion(answers, "descobert") || findLastByQuestion(answers, "ser vist");
-    const controlAnswer = findLastByQuestion(answers, "familiar") || findLastByQuestion(answers, "assembles");
-    const fearAnswer = findLastByQuestion(answers, "pitjor") || findLastByQuestion(answers, "tems");
-    const growthAnswer = findLastByQuestion(answers, "créixer") || findLastByQuestion(answers, "integressis");
-
-    const day = (n:number, title:string, items:string[]) =>
-      `### Dia ${n} — ${title}\n` + items.map(i=>`- [ ] ${i}`).join("\n") + "\n\n";
-
-    const plan =
-      day(1,"Identitat i límits", [
-        "Un **NO petit** on diries sí.",
-        maskAnswer ? `Màscara detectada: "${snippet(maskAnswer.response, 120)}". Treballa amb això.`
-                   : "Detecta 1 màscara recurrent i escriu-la.",
-        "3' de respiració 4-4-6 abans d'una decisió.",
-      ]) +
-      day(2,"Trencar el loop d'anestèsia", [
-        "Franja de **24 h** sense fumar/beure.",
-        "Quan piqui: **Regla 10'** + caminar 10'.",
-        loopAnswer ? `El teu loop: "${snippet(loopAnswer.response, 120)}". Observa'l sense jutjar.`
-                   : "Posa nom al teu loop (3 paraules).",
-      ]) +
-      day(3,"Límit amb algú clau", [
-        "Comunica 1 límit en **1 frase** (amable i ferm).",
-        controlAnswer ? `Recordatori del patró familiar: "${snippet(controlAnswer.response, 100)}".`
-                      : "Identifica amb qui necessites més límits.",
-        "Petita recompensa sana després.",
-      ]) +
-      day(4,"Escassetat fora", [
-        "Ordre/neteja d'1 objecte-àncora del passat.",
-        "Revisió finances 20' i una acció (cancel·lar, ajustar, estalviar).",
-        scarcityPattern ? "Recorda: l'escassetat és memòria, no realitat present." : "",
-      ]) +
-      day(5,"Direcció i far", [
-        "Escriu la teva **frase far** (1 línia).",
-        "**Pas de 15'** que t'hi acosta (agenda'l).",
-        growthAnswer ? `Reflexió: "${snippet(growthAnswer.response, 100)}".` : "",
-      ]) +
-      day(6,"Visibilitat sana", [
-        "Missatge honest a 1 persona (agraïment o demanar ajuda).",
-        invisAnswer ? `Recordatori sobre visibilitat: "${snippet(invisAnswer.response, 120)}".`
-                    : "Dona nom a la teva por d'invisibilitat.",
-      ]) +
-      day(7,"Tancament i hàbit mínim", [
-        "Revisió: què ha funcionat? (3 línies).",
-        "Defineix **hàbit mínim setmanal** (p.ex. 2' escriure / 10' caminar).",
-        fearAnswer ? `Integra la por: "${snippet(fearAnswer.response, 100)}".` : "",
-      ]);
-
-    const personalizedScripts = `
-## Scripts SOS "si–aleshores" (personalitzats)
-- **Si** tens ganes de fumar/beure **aleshores** posa un temporitzador de 10' i fes 5 cicles 4-4-6 + camina 10'.
-- **Si** sents invisibilitat **aleshores** envia un missatge honest a una persona de confiança ("Avui em costa; em dones un cop de mà?").
-- **Si** urges de control **aleshores** delega 1 detall i registra què passa.
-${controlAnswer ? `- **Recordatori del teu patró**: "${snippet(controlAnswer.response, 140)}".` : ""}
-${fearAnswer ? `- **Quan vingui la por**: Recorda "${snippet(fearAnswer.response, 140)}".` : ""}
-`;
-
-    const tracker = `
-## Registre d'hàbits — 7 dies
-| Dia | Acció clau | Fet | Notes personals |
-|-----|------------|-----|-----------------|
-| 1 | NO petit + 4-4-6 |   | ${maskAnswer ? "Màscara:" : ""} |
-| 2 | 24h sense + regla 10' |   | ${loopAnswer ? "Loop:" : ""} |
-| 3 | Límit en 1 frase |   | ${controlAnswer ? "Patró:" : ""} |
-| 4 | Ordre + finances 20' |   | Escassetat fora |
-| 5 | Pas de 15' cap al far |   | ${growthAnswer ? "Creixement:" : ""} |
-| 6 | Missatge honest |   | ${invisAnswer ? "Visibilitat:" : ""} |
-| 7 | Revisió + hàbit mínim |   | ${fearAnswer ? "Por integrada:" : ""} |
-`;
-
-    const sos = `
-## Targeta SOS (3 passos personalitzats)
-1) **Atura** (10s cos quiet).
-2) **Respira 4-4-6** ×5.
-3) **Pregunta**: "Què necessito de veritat ara?" i fes el **pas més petit**.
-
-### Les teves frases àncora:
-${maskAnswer ? `- Màscara: "${snippet(maskAnswer.response, 80)}"` : ""}
-${fearAnswer ? `- Por: "${snippet(fearAnswer.response, 80)}"` : ""}
-${growthAnswer ? `- Creixement: "${snippet(growthAnswer.response, 80)}"` : ""}
-`;
-
-    return (
-`# Tremolor — Pla Enriquit de 7 dies (Personalitzat)
-
-Progrés: **${stats.progress}%** · Veu dominant: **${cap(stats.dominantVoice)} (${stats.counts[stats.dominantVoice] || 0}/15)**
-
-${plan}
-${personalizedScripts}
-${tracker}
-${sos}
-`
-    );
-  };
+  // Use unified builders
+  const previewMd = buildPreviewMd(answers);
+  const fullPlanMd = buildFullPlanMd(answers);
 
   // ---------- actions ----------
   const toCRLF = (s: string) => s.replace(/\r?\n/g, "\r\n");
@@ -359,9 +266,8 @@ ${sos}
   };
 
   const copyPreview = async ()=>{
-    const md = buildPreviewMD();
-    try { await navigator.clipboard.writeText(md); alert("Vista prèvia copiada (Markdown)."); }
-    catch { download("tremolor-preview.md", md); }
+    try { await navigator.clipboard.writeText(previewMd); alert("Vista prèvia copiada (Markdown)."); }
+    catch { download("tremolor-preview.md", previewMd); }
   };
 
   const validEmail = (s:string)=>/\S+@\S+\.\S+/.test(s);
@@ -378,13 +284,12 @@ ${sos}
     
     // Fire-and-forget API call
     try {
-      const planMd = buildFullPlanMD();
       const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          planMd,
+          planMd: fullPlanMd,
         }),
       });
       
@@ -405,8 +310,53 @@ ${sos}
       setError("Cal correu o codi del llibre per desbloquejar");
       return;
     }
-    download("tremolor-pla-enriquit.md", buildFullPlanMD());
+    // Windows-friendly MD with BOM and CRLF
+    const BOM = "\uFEFF";
+    const content = BOM + fullPlanMd.replace(/\n/g, "\r\n");
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), { href: url, download: "tremolor-pla-enriquit.md" });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
+
+  // Donut chart component
+  function Donut({tu=0, ego=0, ombra=0}:{tu:number;ego:number;ombra:number}) {
+    const total = Math.max(tu+ego+ombra, 1);
+    const seg = [
+      {pct: tu/total, color: "#FFD700", label:"Tu"},
+      {pct: ego/total, color: "#38bdf8", label:"Ego"},
+      {pct: ombra/total, color: "#a78bfa", label:"Ombra"},
+    ];
+    const C = 60, R = 28, P = 2*Math.PI*R;
+    let offset = 0;
+    return (
+      <div className="flex items-center gap-6 p-6 rounded-lg bg-white/5 border border-white/10">
+        <svg width={C} height={C} viewBox={`0 0 ${C} ${C}`} className="shrink-0">
+          <g transform={`translate(${C/2},${C/2}) rotate(-90)`}>
+            <circle r={R} cx={0} cy={0} fill="none" stroke="#222" strokeWidth="12"/>
+            {seg.map((s,i)=>{
+              const len = s.pct * P;
+              const circ = (
+                <circle key={i} r={R} cx={0} cy={0}
+                  fill="none" stroke={s.color} strokeWidth="12"
+                  strokeDasharray={`${len} ${P-len}`} strokeDashoffset={-offset}/>
+              );
+              offset += len;
+              return circ;
+            })}
+          </g>
+        </svg>
+        <div className="text-sm space-y-1">
+          <div className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded" style={{background:"#FFD700"}}/> Tu — {Math.round(tu)}%</div>
+          <div className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded" style={{background:"#38bdf8"}}/> Ego — {Math.round(ego)}%</div>
+          <div className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded" style={{background:"#a78bfa"}}/> Ombra — {Math.round(ombra)}%</div>
+        </div>
+      </div>
+    );
+  }
 
   // ---------- UI ----------
   return (
@@ -425,8 +375,11 @@ ${sos}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="p-6 rounded bg-white/5 border border-white/10"><p className="text-sm opacity-70">Progrés</p><p className="text-2xl font-bold">{progress}%</p></div>
           <div className="p-6 rounded bg-white/5 border border-white/10"><p className="text-sm opacity-70">Veu dominant</p><p className="text-2xl font-bold capitalize">{cap(dominantVoice)} ({dominantCount}/15)</p></div>
-          <div className="p-6 rounded bg-white/5 border border-white/10"><p className="text-sm opacity-70">Respostes</p><p className="text-2xl font-bold">{answers.length}/{total}</p></div>
+          <div className="p-6 rounded bg-white/5 border border-white/10"><p className="text-sm opacity-70">Respostes</p><p className="text-2xl font-bold">{answers.length}/15</p></div>
         </div>
+
+        {/* Donut chart */}
+        <Donut tu={stats.percent("tu")} ego={stats.percent("ego")} ombra={stats.percent("ombra")} />
 
         {/* Email capture (Catalan) */}
         <section className="bg-white/5 border border-white/10 rounded p-4 space-y-3">
