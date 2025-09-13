@@ -10,6 +10,32 @@ type Answer = {
   createdAt?: string; // ISO
 };
 
+function normalize(s?: string) {
+  return (s || "").toLowerCase().normalize("NFC");
+}
+
+function findLastByQuestion(answers: Answer[], fragment: string) {
+  const f = normalize(fragment);
+  for (let i = answers.length - 1; i >= 0; i--) {
+    const q = normalize(answers[i]?.question);
+    if (q.includes(f)) return answers[i];
+  }
+  return undefined;
+}
+
+function statsFrom(answers: Answer[]) {
+  const total = 15;
+  const completed = answers?.length || 0;
+  const progress = Math.round((completed / total) * 100);
+  const counts: Record<string, number> = {};
+  answers.forEach(a => {
+    const k = (a?.dominant || "").toLowerCase();
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  const dominantVoice = Object.entries(counts).sort((a,b) => b[1]-a[1])[0]?.[0] || "—";
+  return { progress, dominantVoice, counts };
+}
+
 const PARTS = [
   "Part I - Qui ets?",
   "Part II - D'on véns?",
@@ -140,39 +166,55 @@ export default function InformePage() {
   const fearLoseAll     = has(textAll, ["perdria tot","perdre-ho tot","ho perdré tot"]);
 
   // ---------- Markdown builders ----------
-  // Preview (free: copy/print)
+  // Enhanced Preview (free: copy/print)
   const buildPreviewMD = () => {
+    const stats = statsFrom(answers);
+    
+    // Find specific user responses for personalization
+    const maskAnswer = findLastByQuestion(answers, "màscara") || findLastByQuestion(answers, "personatge");
+    const familyAnswer = findLastByQuestion(answers, "familiar") || findLastByQuestion(answers, "assembles");
+    const directionAnswer = findLastByQuestion(answers, "direcció") || findLastByQuestion(answers, "última vegada");
+    const fearAnswer = findLastByQuestion(answers, "descobert") || findLastByQuestion(answers, "ser vist");
+    const growthAnswer = findLastByQuestion(answers, "créixer") || findLastByQuestion(answers, "integressis");
+
     const partLines = (title: string, lines: string[]) =>
       `\n**${title}**\n\n` + lines.map(l=>`- ${l}`).join("\n") + "\n";
     const blocks: string[] = [];
     const section = (title: string, lines: string[]) => blocks.push(partLines(title, lines));
 
     section("I. Qui ets?", [
-      peoplePleaser ? "Tens claredat: «ser amable amb tothom» és màscara; vols límits."
-                    : "Estàs afinant identitat: vols coherència i límits clars.",
+      maskAnswer ? `Màscara detectada: "${snippet(maskAnswer.response, 80)}". Vols límits clars.`
+                 : "Estàs afinant identitat: vols coherència i límits clars.",
       "Risc: agradar per no ser rebutjat.",
       "Microacció: avui **1 NO petit** on normalment diries sí.",
     ]);
+    
     section("II. D'on véns?", [
-      controlPattern ? "Ego controla per seguretat — és una memòria de protecció."
-                     : "Tens trams del passat que encara regulen reaccions.",
-      scarcityPattern ? "El relat d'escassetat/«guerra» continua actiu de fons."
-                      : "Posa nom als patrons familiars per desactivar-los.",
+      familyAnswer ? `Patró familiar: "${snippet(familyAnswer.response, 80)}". És memòria de protecció.`
+                   : "Tens trams del passat que encara regulen reaccions.",
+      controlPattern ? "El relat d'escassetat/«guerra» continua actiu de fons."
+                     : "Posa nom als patrons familiars per desactivar-los.",
       "Microacció: identifica **1 situació** on controles per por i **delega 1 detall**.",
     ]);
+    
     section("III. Cap a on vas?", [
-      anesthesiaCycle ? "Has posat nom al **loop d'anestèsia** (nostàlgia→tristesa→fumar/beure)."
+      directionAnswer ? `Sobre direcció vas escriure: "${snippet(directionAnswer.response, 80)}".`
                       : "Sense direcció clara hi ha dispersió — defineix un far simple.",
-      "Microacció: quan vingui l'impuls, **regla 10'** + respiració 4-4-6 + passeig curt.",
+      anesthesiaCycle ? "Has posat nom al **loop d'anestèsia** (nostàlgia→tristesa→fumar/beure)."
+                      : "Microacció: quan vingui l'impuls, **regla 10'** + respiració 4-4-6 + passeig curt.",
     ]);
+    
     section("IV. Què tems?", [
-      invisibility ? "Ferida central: **invisibilitat** («no ser vist», «llop solitari»)."
-                   : "La por principal és no ser reconegut en la teva veritat.",
+      fearAnswer ? `Por central: "${snippet(fearAnswer.response, 80)}".`
+                 : invisibility ? "Ferida central: **invisibilitat** («no ser vist», «llop solitari»)."
+                                : "La por principal és no ser reconegut en la teva veritat.",
       "Microacció: **acte de visibilitat** diari (missatge honest o demanar ajuda concreta).",
     ]);
+    
     section("V. Com creixes?", [
-      (touchBottom || fearLoseAll) ? "Creença: «només canvio si **toco fons**» + por a «**perdre-ho tot**» si integres l'Ombra."
-                                   : "Creixement sostingut > heroïcitats puntuals. La clau és el llindar mínim.",
+      growthAnswer ? `Sobre creixement: "${snippet(growthAnswer.response, 80)}".`
+                   : (touchBottom || fearLoseAll) ? "Creença: «només canvio si **toco fons**» + por a «**perdre-ho tot**»."
+                                                  : "Creixement sostingut > heroïcitats puntuals. La clau és el llindar mínim.",
       "Microacció: defineix un **llindar mínim** (2' escriptura o 10' caminar) i compleix-lo 7 dies.",
     ]);
 
@@ -184,8 +226,8 @@ export default function InformePage() {
     return (
 `# 🧭 Com llegir el TEU informe
 
-Veu dominant global: **${cap(dominantVoice)} (${dominantCount}/15)**
-Progrés: **${progress}%**
+Veu dominant global: **${cap(stats.dominantVoice)} (${stats.counts[stats.dominantVoice] || 0}/15)**
+Progrés: **${stats.progress}%**
 
 ## Lectura per parts (telegràfica + 1 microacció)
 ` + blocks.join("") + `
@@ -198,12 +240,17 @@ Progrés: **${progress}%**
     );
   };
 
-  // Enriched Full Plan (email & gated download)
+  // Enhanced Full Plan (email & gated download)
   const buildFullPlanMD = () => {
-    const maskEx   = pickFromAnswers(answers, ["màscara","amable"]);
-    const loopEx   = pickFromAnswers(answers, ["fumar","beure","nostàlgia","tristesa"]);
-    const invisEx  = pickFromAnswers(answers, ["invisible","no ser vist","llop solitari"]);
-    const controlEx= pickFromAnswers(answers, ["controlar-ho tot","control"]);
+    const stats = statsFrom(answers);
+    
+    // Find specific user responses for deep personalization
+    const maskAnswer = findLastByQuestion(answers, "màscara") || findLastByQuestion(answers, "personatge");
+    const loopAnswer = findLastByQuestion(answers, "última vegada") || findLastByQuestion(answers, "loop");
+    const invisAnswer = findLastByQuestion(answers, "descobert") || findLastByQuestion(answers, "ser vist");
+    const controlAnswer = findLastByQuestion(answers, "familiar") || findLastByQuestion(answers, "assembles");
+    const fearAnswer = findLastByQuestion(answers, "pitjor") || findLastByQuestion(answers, "tems");
+    const growthAnswer = findLastByQuestion(answers, "créixer") || findLastByQuestion(answers, "integressis");
 
     const day = (n:number, title:string, items:string[]) =>
       `### Dia ${n} — ${title}\n` + items.map(i=>`- [ ] ${i}`).join("\n") + "\n\n";
@@ -211,69 +258,84 @@ Progrés: **${progress}%**
     const plan =
       day(1,"Identitat i límits", [
         "Un **NO petit** on diries sí.",
-        maskEx ? `Nota de màscara detectada: "${maskEx}".` : "Detecta 1 màscara recurrent i escriu-la.",
+        maskAnswer ? `Màscara detectada: "${snippet(maskAnswer.response, 120)}". Treballa amb això.`
+                   : "Detecta 1 màscara recurrent i escriu-la.",
         "3' de respiració 4-4-6 abans d'una decisió.",
       ]) +
       day(2,"Trencar el loop d'anestèsia", [
         "Franja de **24 h** sense fumar/beure.",
         "Quan piqui: **Regla 10'** + caminar 10'.",
-        loopEx ? `Nom del teu loop: "${loopEx}".` : "Posa nom al teu loop (3 paraules).",
+        loopAnswer ? `El teu loop: "${snippet(loopAnswer.response, 120)}". Observa'l sense jutjar.`
+                   : "Posa nom al teu loop (3 paraules).",
       ]) +
       day(3,"Límit amb algú clau", [
         "Comunica 1 límit en **1 frase** (amable i ferm).",
+        controlAnswer ? `Recordatori del patró familiar: "${snippet(controlAnswer.response, 100)}".`
+                      : "Identifica amb qui necessites més límits.",
         "Petita recompensa sana després.",
       ]) +
       day(4,"Escassetat fora", [
         "Ordre/neteja d'1 objecte-àncora del passat.",
         "Revisió finances 20' i una acció (cancel·lar, ajustar, estalviar).",
+        scarcityPattern ? "Recorda: l'escassetat és memòria, no realitat present." : "",
       ]) +
       day(5,"Direcció i far", [
         "Escriu la teva **frase far** (1 línia).",
         "**Pas de 15'** que t'hi acosta (agenda'l).",
+        growthAnswer ? `Reflexió: "${snippet(growthAnswer.response, 100)}".` : "",
       ]) +
       day(6,"Visibilitat sana", [
         "Missatge honest a 1 persona (agraïment o demanar ajuda).",
-        invisEx ? `Recordatori: vas escriure "${invisEx}".` : "Dona nom a la teva por d'invisibilitat.",
+        invisAnswer ? `Recordatori sobre visibilitat: "${snippet(invisAnswer.response, 120)}".`
+                    : "Dona nom a la teva por d'invisibilitat.",
       ]) +
       day(7,"Tancament i hàbit mínim", [
         "Revisió: què ha funcionat? (3 línies).",
         "Defineix **hàbit mínim setmanal** (p.ex. 2' escriure / 10' caminar).",
+        fearAnswer ? `Integra la por: "${snippet(fearAnswer.response, 100)}".` : "",
       ]);
 
-    const ifThen = `
-## Scripts SOS "si–aleshores"
+    const personalizedScripts = `
+## Scripts SOS "si–aleshores" (personalitzats)
 - **Si** tens ganes de fumar/beure **aleshores** posa un temporitzador de 10' i fes 5 cicles 4-4-6 + camina 10'.
 - **Si** sents invisibilitat **aleshores** envia un missatge honest a una persona de confiança ("Avui em costa; em dones un cop de mà?").
-- **Si** urges de control **aleshores** delega 1 detall i registra què passa (${controlEx ? `exemple: "${controlEx}"` : "exemple propi"}).
+- **Si** urges de control **aleshores** delega 1 detall i registra què passa.
+${controlAnswer ? `- **Recordatori del teu patró**: "${snippet(controlAnswer.response, 140)}".` : ""}
+${fearAnswer ? `- **Quan vingui la por**: Recorda "${snippet(fearAnswer.response, 140)}".` : ""}
 `;
 
     const tracker = `
 ## Registre d'hàbits — 7 dies
-| Dia | Acció clau | Fet |
-|-----|------------|-----|
-| 1 | NO petit + 4-4-6 |   |
-| 2 | 24h sense + regla 10' |   |
-| 3 | Límit en 1 frase |   |
-| 4 | Ordre + finances 20' |   |
-| 5 | Pas de 15' cap al far |   |
-| 6 | Missatge honest |   |
-| 7 | Revisió + hàbit mínim |   |
+| Dia | Acció clau | Fet | Notes personals |
+|-----|------------|-----|-----------------|
+| 1 | NO petit + 4-4-6 |   | ${maskAnswer ? "Màscara:" : ""} |
+| 2 | 24h sense + regla 10' |   | ${loopAnswer ? "Loop:" : ""} |
+| 3 | Límit en 1 frase |   | ${controlAnswer ? "Patró:" : ""} |
+| 4 | Ordre + finances 20' |   | Escassetat fora |
+| 5 | Pas de 15' cap al far |   | ${growthAnswer ? "Creixement:" : ""} |
+| 6 | Missatge honest |   | ${invisAnswer ? "Visibilitat:" : ""} |
+| 7 | Revisió + hàbit mínim |   | ${fearAnswer ? "Por integrada:" : ""} |
 `;
 
     const sos = `
-## Targeta SOS (3 passos)
-1) **Atura** (10s cos quiet).  
-2) **Respira 4-4-6** ×5.  
+## Targeta SOS (3 passos personalitzats)
+1) **Atura** (10s cos quiet).
+2) **Respira 4-4-6** ×5.
 3) **Pregunta**: "Què necessito de veritat ara?" i fes el **pas més petit**.
+
+### Les teves frases àncora:
+${maskAnswer ? `- Màscara: "${snippet(maskAnswer.response, 80)}"` : ""}
+${fearAnswer ? `- Por: "${snippet(fearAnswer.response, 80)}"` : ""}
+${growthAnswer ? `- Creixement: "${snippet(growthAnswer.response, 80)}"` : ""}
 `;
 
     return (
-`# Tremolor — Pla Enriquit de 7 dies
+`# Tremolor — Pla Enriquit de 7 dies (Personalitzat)
 
-Progrés: **${progress}%** · Veu dominant: **${cap(dominantVoice)} (${dominantCount}/15)**
+Progrés: **${stats.progress}%** · Veu dominant: **${cap(stats.dominantVoice)} (${stats.counts[stats.dominantVoice] || 0}/15)**
 
 ${plan}
-${ifThen}
+${personalizedScripts}
 ${tracker}
 ${sos}
 `
