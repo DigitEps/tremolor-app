@@ -1,6 +1,9 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import VoiceAnalysisChart from "@/components/VoiceAnalysisChart";
+import TestimonialsSection from "@/components/TestimonialsSection";
+import { ProfessionalPDFGenerator, type ReportData } from "@/utils/pdfGenerator";
 
 type Answer = {
   partKey: string;
@@ -290,6 +293,9 @@ export default function InformePage() {
         body: JSON.stringify({
           email,
           planMd: fullPlanMd,
+          dominantVoice: stats.dominantVoice,
+          progress: stats.progress,
+          userName: email.split('@')[0], // Extract name from email
         }),
       });
       
@@ -320,6 +326,44 @@ export default function InformePage() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadProfessionalPDF = async () => {
+    if (!canDownload) {
+      setError("Cal correu o codi del llibre per desbloquejar");
+      return;
+    }
+
+    try {
+      const reportData: ReportData = {
+        answers: answers.map(a => ({
+          partKey: a.partKey,
+          question: a.question,
+          response: a.response || "",
+          dominant: a.dominant || "",
+          createdAt: a.createdAt || new Date().toISOString()
+        })),
+        stats,
+        userEmail: storedEmail,
+        generatedAt: new Date().toISOString()
+      };
+
+      const pdfGenerator = new ProfessionalPDFGenerator();
+      const pdfBytes = pdfGenerator.generateReport(reportData);
+      
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mapa-del-tremolor-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setError("Error generant el PDF. Prova amb la versió Markdown.");
+    }
   };
 
   // Donut chart component
@@ -360,14 +404,20 @@ export default function InformePage() {
 
   // ---------- UI ----------
   return (
-    <main className="min-h-screen px-6 py-12 bg-black text-white">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Informe del Tremolor</h1>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={()=>router.push("/dashboard")} className="px-3 py-2 rounded bg-white/10 border border-white/10 text-sm">← Tornar</button>
-            <button onClick={copyPreview} className="px-3 py-2 rounded bg-white/10 border border-white/10 text-sm">Copiar vista prèvia (MD)</button>
-            <button onClick={()=>window.print()} className="px-3 py-2 rounded bg-white/10 border border-white/10 text-sm">Imprimir vista prèvia</button>
+    <main className="min-h-screen px-6 py-12 bg-gradient-to-br from-gray-900 via-black to-purple-900 text-white">
+      <div className="max-w-6xl mx-auto space-y-12">
+        {/* Header with improved styling */}
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+            Mapa del Tremolor
+          </h1>
+          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            Anàlisi professional de les teves veus internes per a un creixement personal profund
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button onClick={()=>router.push("/dashboard")} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-sm transition-colors">← Tornar</button>
+            <button onClick={copyPreview} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-sm transition-colors">Copiar vista prèvia</button>
+            <button onClick={()=>window.print()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-sm transition-colors">Imprimir</button>
           </div>
         </div>
 
@@ -378,8 +428,19 @@ export default function InformePage() {
           <div className="p-6 rounded bg-white/5 border border-white/10"><p className="text-sm opacity-70">Respostes</p><p className="text-2xl font-bold">{answers.length}/15</p></div>
         </div>
 
-        {/* Donut chart */}
-        <Donut tu={stats.percent("tu")} ego={stats.percent("ego")} ombra={stats.percent("ombra")} />
+        {/* Enhanced Voice Analysis Chart */}
+        <div className="bg-gradient-to-br from-gray-900 to-black rounded-xl p-8 border border-white/10">
+          <h2 className="text-2xl font-bold text-white mb-6 text-center">Anàlisi de les Teves Veus Internes</h2>
+          <VoiceAnalysisChart
+            data={{
+              tu: stats.counts.tu || 0,
+              ego: stats.counts.ego || 0,
+              ombra: stats.counts.ombra || 0
+            }}
+            size="large"
+            showLabels={true}
+          />
+        </div>
 
         {/* Email capture (Catalan) */}
         <section className="bg-white/5 border border-white/10 rounded p-4 space-y-3">
@@ -389,25 +450,42 @@ export default function InformePage() {
             {" "}
             <a href="/regal" className="underline underline-offset-4 hover:opacity-80">Tens el llibre? Entra el teu codi</a>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="email"
-              value={email}
-              onChange={(e)=>setEmail(e.target.value)}
-              placeholder="elmeu@email.com"
-              className="px-3 py-2 rounded bg-black/40 border border-white/15 flex-1"
-            />
-            <button onClick={sendPlan} disabled={sending} className="px-3 py-2 rounded bg-white/10 hover:bg-white/15 border border-white/10 text-sm">
-              {sending ? "Enviant…" : "Envia'm el Pla complet"}
-            </button>
-            <button
-              onClick={downloadFullIfAllowed}
-              disabled={!canDownload}
-              className="px-3 py-2 rounded bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 text-sm"
-              title={canDownload ? "Descarregar Pla complet (MD)" : "Cal correu o codi del llibre per desbloquejar"}
-            >
-              {canDownload ? (hasPerk ? "Descarregar .MD (Pla complet) — Regal del llibre" : "Descarregar .MD (Pla complet)") : "🔒 Descarregar .MD (Pla complet)"}
-            </button>
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+              <input
+                type="email"
+                value={email}
+                onChange={(e)=>setEmail(e.target.value)}
+                placeholder="elmeu@email.com"
+                className="px-4 py-3 rounded-lg bg-black/40 border border-white/20 flex-1 text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <button
+                onClick={sendPlan}
+                disabled={sending}
+                className="px-6 py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 text-white font-medium transition-all"
+              >
+                {sending ? "Enviant…" : "Enviar Informe"}
+              </button>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={downloadProfessionalPDF}
+                disabled={!canDownload}
+                className="px-6 py-4 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg shadow-xl transform hover:scale-105 transition-all"
+                title={canDownload ? "Descarregar Informe Professional (PDF)" : "Cal correu o codi del llibre per desbloquejar"}
+              >
+                {canDownload ? "📄 Descarregar Informe Professional (PDF)" : "🔒 Informe Professional (PDF)"}
+              </button>
+              <button
+                onClick={downloadFullIfAllowed}
+                disabled={!canDownload}
+                className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 text-sm transition-colors"
+                title={canDownload ? "Descarregar Pla complet (MD)" : "Cal correu o codi del llibre per desbloquejar"}
+              >
+                {canDownload ? (hasPerk ? "📝 Pla .MD — Regal del llibre" : "📝 Pla .MD (text)") : "🔒 Pla .MD (text)"}
+              </button>
+            </div>
           </div>
           {error && <div className="text-xs text-red-400">{error}</div>}
           {sent && <div className="text-xs text-green-400">✅ Enviat. Revisa la teva bústia (i el correu brossa).</div>}
