@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import VoiceResponse from "./VoiceResponse";
 
 type Voice = "ombra" | "ego" | "tu";
@@ -39,16 +39,52 @@ export default function TremorQuestion({
   partKey,
   question,
   onNext,
+  onPrevious,
+  canGoPrevious = false,
 }: {
   partKey: string;
   question: string;
   onNext: () => void;
+  onPrevious?: () => void;
+  canGoPrevious?: boolean;
 }) {
   const [response, setResponse] = useState("");
   const [voices, setVoices] = useState<{ ombra?: string; ego?: string; tu?: string }>({});
   const [dominant, setDominant] = useState<Voice | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const canReact = response.trim().length >= 3;
+
+  // Clear textarea when question changes and optionally prefill from storage
+  useEffect(() => {
+    const questionKey = `${partKey}::${question}`;
+    
+    // Try to find existing answer for this question
+    try {
+      const KEY = "tremor.answers.v1";
+      const list = JSON.parse(localStorage.getItem(KEY) || "[]");
+      const existingAnswer = list.find((item: any) =>
+        item.partKey === partKey && item.question === question
+      );
+      
+      if (existingAnswer && existingAnswer.response) {
+        setResponse(existingAnswer.response);
+      } else {
+        setResponse("");
+      }
+    } catch {
+      setResponse("");
+    }
+    
+    // Clear voices when question changes
+    setVoices({});
+    setDominant(null);
+    
+    // Focus textarea
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [partKey, question]);
 
   const hint = useMemo(() => {
     // Petita pista sota la pregunta (canvia segons paraules clau)
@@ -68,19 +104,46 @@ export default function TremorQuestion({
       ego: pick(EGO)(response),
       tu: pick(TU)(response),
     });
-    // Guardem de forma simple a LocalStorage
+    saveAnswer(d);
+  }
+
+  function saveAnswer(dominantVoice?: Voice) {
     try {
       const KEY = "tremor.answers.v1";
       const list = JSON.parse(localStorage.getItem(KEY) || "[]");
-      list.push({
+      
+      // Remove existing answer for this question if it exists
+      const filteredList = list.filter((item: any) =>
+        !(item.partKey === partKey && item.question === question)
+      );
+      
+      // Add new answer
+      filteredList.push({
         partKey,
         question,
         response,
-        dominant: d,
+        dominant: dominantVoice,
         createdAt: new Date().toISOString(),
       });
-      localStorage.setItem(KEY, JSON.stringify(list));
+      
+      localStorage.setItem(KEY, JSON.stringify(filteredList));
     } catch {}
+  }
+
+  function handleNext() {
+    // Save answer before moving to next
+    saveAnswer(dominant || undefined);
+    onNext();
+  }
+
+  function handlePrevious() {
+    // Save current answer before going back
+    if (response.trim()) {
+      saveAnswer(dominant || undefined);
+    }
+    if (onPrevious) {
+      onPrevious();
+    }
   }
 
   return (
@@ -97,6 +160,7 @@ export default function TremorQuestion({
       <p className="text-sm opacity-70">{hint}</p>
 
       <textarea
+        ref={textareaRef}
         className="w-full p-4 bg-gray-900 text-white rounded-lg border border-white/10 focus:ring-2 focus:ring-red-800 focus:outline-none"
         placeholder="Respon amb honestedat brutal…"
         rows={5}
@@ -123,8 +187,17 @@ export default function TremorQuestion({
           Reacciona les veus
         </button>
 
+        {canGoPrevious && (
+          <button
+            onClick={handlePrevious}
+            className="px-5 py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+          >
+            ← Anterior
+          </button>
+        )}
+
         <button
-          onClick={onNext}
+          onClick={handleNext}
           className="px-5 py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white"
         >
           El tremolor continua →

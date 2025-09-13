@@ -63,14 +63,18 @@ export default function InformePage() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [canDownload, setCanDownload] = useState<boolean>(false);
-  useEffect(() => { if (sent) setCanDownload(true); }, [sent]);
+  
+  // Derived gating state
+  const [storedEmail, setStoredEmail] = useState<string>("");
+  const [hasPerk, setHasPerk] = useState<boolean>(false);
+  const hasEmail = !!storedEmail;
+  const canDownload = hasEmail || hasPerk;
 
   useEffect(() => {
     // if query has ?perk=book and no local flag, respect it (best effort)
     try {
       const url = new URL(window.location.href);
-      if (url.searchParams.get("perk")) setCanDownload(true);
+      if (url.searchParams.get("perk")) setHasPerk(true);
     } catch {}
   }, []);
 
@@ -86,11 +90,11 @@ export default function InformePage() {
       
       if (savedEmail) {
         setEmail(savedEmail);
-        setCanDownload(true);
+        setStoredEmail(savedEmail);
       }
       
       if (savedPerk) {
-        setCanDownload(true);
+        setHasPerk(true);
       }
     } catch { setRaw([]); }
   }, []);
@@ -302,32 +306,41 @@ ${sos}
   const sendPlan = async ()=>{
     setError(null);
     if (!validEmail(email)) { setError("Introdueix un correu vàlid."); return; }
+    
+    // Optimistic gating: save email immediately and grant access
+    localStorage.setItem("tremor.email", email);
+    setStoredEmail(email);
+    setSent(true);
+    
     setSending(true);
+    
+    // Fire-and-forget API call
     try {
+      const planMd = buildFullPlanMD();
       const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          progress,
-          dominantVoice,
-          markdownFull: buildFullPlanMD(),
-          answers,
-          createdAt: new Date().toISOString(),
+          planMd,
         }),
       });
-      if (!res.ok) throw new Error("Error d'enviament");
-      setSent(true);
-      localStorage.setItem("tremor.email", email);
-      setCanDownload(true); // 🔓 unlock
+      
+      if (!res.ok) {
+        // Show warning but don't revoke gating
+        setError("(Enviament temporalment indisponible; el Pla queda igualment desbloquejat.)");
+      }
     } catch (e:any) {
-      setError(e?.message || "No s'ha pogut enviar. Torna-ho a provar.");
-    } finally { setSending(false); }
+      // Show warning but don't revoke gating
+      setError("(Enviament temporalment indisponible; el Pla queda igualment desbloquejat.)");
+    } finally {
+      setSending(false);
+    }
   };
 
   const downloadFullIfAllowed = ()=>{
     if (!canDownload) {
-      setError("Deixa el teu correu per rebre i desbloquejar el Pla complet.");
+      setError("Cal correu o codi del llibre per desbloquejar");
       return;
     }
     download("tremolor-pla-enriquit.md", buildFullPlanMD());
@@ -376,9 +389,9 @@ ${sos}
               onClick={downloadFullIfAllowed}
               disabled={!canDownload}
               className="px-3 py-2 rounded bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 text-sm"
-              title={canDownload ? "Descarregar Pla complet (MD)" : "Posa el teu correu per desbloquejar la descàrrega"}
+              title={canDownload ? "Descarregar Pla complet (MD)" : "Cal correu o codi del llibre per desbloquejar"}
             >
-              {canDownload ? (!!localStorage.getItem("tremor.perk") ? "Descarregar .MD (Pla complet) — Regal del llibre" : "Descarregar .MD (Pla complet)") : "🔒 Descarregar .MD (Pla complet)"}
+              {canDownload ? (hasPerk ? "Descarregar .MD (Pla complet) — Regal del llibre" : "Descarregar .MD (Pla complet)") : "🔒 Descarregar .MD (Pla complet)"}
             </button>
           </div>
           {error && <div className="text-xs text-red-400">{error}</div>}

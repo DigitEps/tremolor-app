@@ -90,6 +90,17 @@ export default function Page() {
     }
   }
 
+  function previous() {
+    if (qIdx > 0) {
+      setQIdx((v) => v - 1);
+    } else if (partIdx > 0) {
+      setPartIdx((v) => v - 1);
+      setQIdx(PARTS[partIdx - 1].questions.length - 1);
+    }
+  }
+
+  const canGoPrevious = partIdx > 0 || qIdx > 0;
+
   return (
     <main className="min-h-screen px-4 py-10 sm:py-14 bg-black text-white animated-bg">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -106,6 +117,8 @@ export default function Page() {
           partKey={part.title}
           question={question}
           onNext={next}
+          onPrevious={previous}
+          canGoPrevious={canGoPrevious}
         />
       </div>
     </main>
