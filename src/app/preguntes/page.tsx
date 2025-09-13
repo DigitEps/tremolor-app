@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import TremorQuestion from "@/components/TremorQuestion";
 
 type Part = { title: string; color: string; questions: string[] };
@@ -53,8 +54,21 @@ const PARTS: Part[] = [
 ];
 
 export default function Page() {
+  const router = useRouter();
   const [partIdx, setPartIdx] = useState(0);
   const [qIdx, setQIdx] = useState(0);
+
+  // Guard: if survey is already complete (15/15), auto-redirect to /informe
+  useEffect(() => {
+    try {
+      const answers = JSON.parse(localStorage.getItem("tremor.answers.v1") || "[]");
+      if (Array.isArray(answers) && answers.length >= 15) {
+        router.replace("/informe");
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [router]);
 
   const part = PARTS[partIdx];
   const question = part.questions[qIdx];
@@ -71,8 +85,8 @@ export default function Page() {
       setPartIdx((v) => v + 1);
       setQIdx(0);
     } else {
-      alert("Has completat el tremolor d’avui. El tremolor continua.");
-      window.location.href = "/"; // més endavant: /dashboard
+      alert("Has completat el tremolor d'avui. El tremolor continua.");
+      router.push("/informe");
     }
   }
 
