@@ -1,0 +1,914 @@
+﻿"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type Answer = {
+  partKey: string;
+  question: string;
+  response: string;
+  dominant: string;
+  createdAt: string;
+};
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// UTILITATS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function norm(s?: string) {
+  return (s ?? "").toLowerCase().normalize("NFC");
+}
+
+function trimLen(s: string, n = 200) {
+  const t = (s || "").trim();
+  return t.length > n ? t.slice(0, n - 1) + "â€¦" : t;
+}
+
+function capitalize(s: string) {
+  const t = (s || "").trim();
+  if (!t) return "â€”";
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function pickLast(answers: Answer[], qFrag: string) {
+  const f = norm(qFrag);
+  for (let i = answers.length - 1; i >= 0; i--) {
+    if (norm(answers[i]?.question).includes(f)) return answers[i]?.response || "";
+  }
+  return "";
+}
+
+function has(text: string, keywords: string[]): boolean {
+  const t = norm(text);
+  return keywords.some(k => t.includes(norm(k)));
+}
+
+function statsFrom(answers: Answer[]) {
+  const total = 15;
+  const completed = answers?.length || 0;
+  const progress = Math.round((completed / total) * 100);
+
+  const counts: Record<string, number> = {};
+  answers.forEach((a) => {
+    const k = (a?.dominant || "").toLowerCase();
+    if (!k) return;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const dominantVoice = entries[0]?.[0] || "â€”";
+
+  return { total, completed, progress, counts, dominantVoice };
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// DETECCIÃ“ DE PATRONS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+interface Patterns {
+  clown: boolean;
+  blameOthers: boolean;
+  failure: boolean;
+  invisible: boolean;
+  control: boolean;
+  perfectionist: boolean;
+  pleaser: boolean;
+  parentMirror: boolean;
+  fall: boolean;
+  selfDestruct: boolean;
+  postpone: boolean;
+  arrogance: boolean;
+}
+
+function detectPatterns(answers: Answer[]): Patterns {
+  const allText = answers.map(a => `${a.question} ${a.response}`).join(" ");
+  const mask = pickLast(answers, "mÃ scara");
+  const loop = pickLast(answers, "loop");
+  const parent = pickLast(answers, "assembles") || pickLast(answers, "pare") || pickLast(answers, "mare");
+  const direction = pickLast(answers, "direcciÃ³") || pickLast(answers, "llibertat");
+  const growth = pickLast(answers, "crÃ©ixer") || pickLast(answers, "destruir");
+  const tomorrow = pickLast(answers, "triar") || pickLast(answers, "complet");
+  const family = pickLast(answers, "secret") || pickLast(answers, "familiar");
+
+  return {
+    clown: has(mask, ["pallasso", "graciÃ³s", "riure", "humor", "fer riure"]),
+    blameOthers: has(allText, ["culpa", "altres", "ells", "seu problema", "no Ã©s meva"]),
+    failure: has(allText, ["fracÃ s", "fracas", "no serveixo", "inÃºtil", "merda", "no valc"]),
+    invisible: has(allText, ["invisible", "no ser vist", "ningÃº em veu", "sol", "solitari"]),
+    control: has(allText, ["control", "controlar", "ordre", "mandar", "tenir raÃ³"]),
+    perfectionist: has(allText, ["perfecte", "perfecta", "error", "fallar", "no puc fallar"]),
+    pleaser: has(allText, ["agradar", "complaure", "quedar bÃ©", "quÃ¨ diran"]),
+    parentMirror: has(parent, ["pare", "mare", "igual", "mateix", "assemblo"]),
+    fall: has(direction, ["caiguda", "caure", "perdre", "buit"]),
+    selfDestruct: has(growth, ["no", "destruir", "impossible", "no puc"]),
+    postpone: has(tomorrow, ["demÃ ", "potser", "algun dia", "ja veurem"]),
+    arrogance: has(family, ["cregut", "creguts", "superiors", "millors"]),
+  };
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GENERACIÃ“ INFORME TXT (TO TREMOLOR)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
+  const st = statsFrom(answers);
+
+  // IMPORTANT: evitem el â€œdemo vibeâ€. Si falta alguna resposta clau, millor â€œâ€”â€.
+  const fallback = "â€”";
+
+  const mask = trimLen(pickLast(answers, "mÃ scara"), 150) || fallback;
+  const loop = trimLen(pickLast(answers, "loop"), 150) || fallback;
+  const fear = trimLen(pickLast(answers, "por") || pickLast(answers, "fracas") || pickLast(answers, "descobert"), 150) || fallback;
+  const whoAlone = trimLen(pickLast(answers, "ningÃº mira"), 150) || fallback;
+
+  const lines: string[] = [];
+
+  // Header
+  lines.push("â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
+  lines.push("â•‘                                                                  â•‘");
+  lines.push("â•‘                    MAPA DEL TREMOLOR                             â•‘");
+  lines.push("â•‘                    El teu informe                                â•‘");
+  lines.push("â•‘                                                                  â•‘");
+  lines.push("â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+  lines.push(`ProgrÃ©s: ${st.progress}%  Â·  Respostes: ${st.completed}/${st.total}  Â·  Veu dominant: ${capitalize(st.dominantVoice)}`);
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+  lines.push("AixÃ² no Ã©s un test de personalitat. Ã‰s un mirall.");
+  lines.push("I els miralls no et volen fer sentir bÃ©.");
+  lines.push("Et volen fer RESPONSABLE.");
+  lines.push("");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("  NOTA IMPORTANT");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+  lines.push("AixÃ² NO substitueix terÃ pia, medicaciÃ³ ni cap professional.");
+  lines.push("Si estÃ s en crisi o tens idees d'autolesiÃ³: PARA AQUÃ.");
+  lines.push("Parla amb un psicÃ²leg, psiquiatre o metge. Demana ajuda.");
+  lines.push("AixÃ² Ã©s un complement. Un cop de llum. No una sala d'urgÃ¨ncies.");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+
+  // 4 Miralls
+  lines.push("EL QUE HAS REVELAT (4 miralls)");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+  lines.push("ðŸŽ­ LA TEVA MÃ€SCARA");
+  lines.push(`   "${mask}"`);
+  lines.push("   No Ã©s qui ets. Ã‰s el que fas perquÃ¨ no et vegin.");
+  lines.push("");
+  lines.push("ðŸ”„ EL LOOP QUE ES REPETEIX");
+  lines.push(`   "${loop}"`);
+  lines.push("   La teva rutina no Ã©s vida. Ã‰s un mecanisme per no sentir.");
+  lines.push("");
+  lines.push("ðŸ’” LA FERIDA QUE PROTEGEIXES");
+  lines.push(`   "${fear}"`);
+  lines.push("   AixÃ² no Ã©s debilitat. Ã‰s la factura d'anys fent veure que no passa res.");
+  lines.push("");
+  lines.push("ðŸ‘ QUI ETS QUAN NINGÃš MIRA");
+  lines.push(`   "${whoAlone}"`);
+  lines.push("   AquÃ­ hi ha la veritat. I fa rÃ bia. PerquÃ¨ Ã©s simple.");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+
+  // Veritat incÃ²moda
+  lines.push("UNA VERITAT INCÃ’MODA (perÃ² reversible)");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+  lines.push("No estÃ s condemnat. PerÃ² tampoc estÃ s \"bloquejat\".");
+  lines.push("EstÃ s REPETINT.");
+  lines.push("");
+  lines.push("I sÃ­: es pot revertir sense heroÃ¯citats.");
+  lines.push("Sense pagar un \"preu alt\"...");
+  lines.push("PerquÃ¨ el preu alt JA EL PAGUES ARA:");
+  lines.push("en energia, en soroll i en autoengany.");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+
+  // 3 Accions
+  lines.push("3 ACCIONS PER AVUI (no demÃ , avui)");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+
+  // AcciÃ³ 1
+  lines.push("1) UN \"NO\" PETIT on normalment diries \"sÃ­\"");
+  lines.push("");
+  if (patterns.pleaser || patterns.clown) {
+    lines.push("   Tu que vas de maja/o amb tothom:");
+    lines.push("   Â· \"No puc avui. Ho fem demÃ .\"");
+    lines.push("   Â· \"AixÃ² no m'encaixa. Passo.\"");
+    lines.push("   Â· \"No em va bÃ© aquest to. Parlem bÃ© o no parlem.\"");
+  } else if (patterns.control) {
+    lines.push("   Tu que necessites controlar-ho tot:");
+    lines.push("   Â· \"AixÃ² ho delego. No ho superviso.\"");
+    lines.push("   Â· \"No opino. Fes-ho com vegis.\"");
+    lines.push("   Â· \"No Ã©s problema meu. SegÃ¼ent.\"");
+  } else {
+    lines.push("   Exemples:");
+    lines.push("   Â· \"No puc avui. Ho fem demÃ .\"");
+    lines.push("   Â· \"AixÃ² no m'encaixa. Passo.\"");
+    lines.push("   Â· \"No em va bÃ© aquest to. Parlem bÃ© o no parlem.\"");
+  }
+  lines.push("");
+  lines.push("   ðŸ‘‰ No Ã©s agressiu. Ã‰s HIGIENE.");
+  lines.push("");
+
+  // AcciÃ³ 2
+  lines.push("2) REGLA 10' â€” comenÃ§a i prou");
+  lines.push("");
+  if (patterns.postpone) {
+    lines.push("   Tu que sempre dius \"demÃ \":");
+    lines.push("   Â· 10' fent AIXÃ’ que portes posposant. Ara.");
+    lines.push("   Â· No tot. NomÃ©s 10 minuts. I veus quÃ¨ passa.");
+  } else if (patterns.selfDestruct) {
+    lines.push("   Tu que creus que has de destruir-te per canviar:");
+    lines.push("   Â· 10' caminar sense mÃºsica (sÃ­, sense anestÃ¨sia).");
+    lines.push("   Â· 10' escriure el que estÃ s evitant en 5 lÃ­nies.");
+    lines.push("   Â· No cal heroÃ¯citats. NomÃ©s 10 minuts.");
+  } else {
+    lines.push("   Exemples:");
+    lines.push("   Â· 10' caminar sense mÃºsica (sÃ­, sense anestÃ¨sia).");
+    lines.push("   Â· 10' ordenar un sol racÃ³ (no tota la casa, no siguis teatrero).");
+    lines.push("   Â· 10' escriure el que estÃ s evitant en 5 lÃ­nies.");
+  }
+  lines.push("");
+  lines.push("   ðŸ‘‰ El teu cervell negocia. Tu no.");
+  lines.push("");
+
+  // AcciÃ³ 3
+  lines.push("3) ACTE DE VISIBILITAT: una veritat o una ajuda concreta");
+  lines.push("");
+  if (patterns.invisible) {
+    lines.push("   Tu que t'amagues perquÃ¨ ser vist fa mal:");
+    lines.push("   Â· Un missatge honest. Sense excuses. Curt.");
+    lines.push("   Â· \"Em costa. Necessito parlar 10 minuts.\"");
+    lines.push("   Â· Deixa que et vegin. NomÃ©s una mica. Ã‰s un mÃºscul.");
+  } else if (patterns.failure) {
+    lines.push("   Tu que creus que ets un fracÃ s:");
+    lines.push("   Â· Diu en veu alta: \"He fracassat en X. I segueixo aquÃ­.\"");
+    lines.push("   Â· A la parella: \"Em fa por aixÃ². No em surt dir-ho bÃ©, perÃ² Ã©s aixÃ².\"");
+    lines.push("   Â· El fracÃ s no et defineix. La rendiciÃ³ sÃ­.");
+  } else {
+    lines.push("   Exemples:");
+    lines.push("   Â· A la parella: \"Em fa por aixÃ². No em surt dir-ho bÃ©, perÃ² Ã©s aixÃ².\"");
+    lines.push("   Â· A un amic: \"Em costa. Necessito parlar 10 minuts.\"");
+    lines.push("   Â· A la feina: \"AixÃ² ho puc fer, aixÃ² no. I no em disculpo per existir.\"");
+  }
+  lines.push("");
+  lines.push("   ðŸ‘‰ Visibilitat no Ã©s drama. Ã‰s CLAREDAT.");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+
+  // Pla 7 dies
+  lines.push("PLA 7 DIES (sense poesia, amb efecte)");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+  lines.push("DIA 1 â€” NO + 10' acciÃ³");
+  lines.push("   Un lÃ­mit petit + una acciÃ³ petita. Sense explicacions eternes.");
+  lines.push("");
+  lines.push("DIA 2 â€” Talla 1 anestÃ¨sia 24h");
+  lines.push("   Pantalla / sucre / tabac / alcohol: UNA. NomÃ©s 24h.");
+  lines.push("   No Ã©s moral. Ã‰s veure qui mana.");
+  lines.push("");
+  lines.push("DIA 3 â€” 1 lÃ­mit en 1 frase");
+  lines.push("   Curt. Ferm. Educat.");
+  lines.push("   \"Ho entenc, perÃ² no ho farÃ©.\"");
+  lines.push("");
+  lines.push("DIA 4 â€” 10' ordre (objecte/espai)");
+  lines.push("   Un objecte o un espai = una ment menys bruta.");
+  lines.push("");
+  lines.push("DIA 5 â€” Frase far (1 lÃ­nia) + 10' pas");
+  lines.push("   Far: \"Aquesta setmana trio X.\"");
+  lines.push("   Pas: una acciÃ³ que ho demostri.");
+  lines.push("");
+  lines.push("DIA 6 â€” Acte de visibilitat");
+  lines.push("   Una conversa o un missatge que portes dies evitant.");
+  lines.push("");
+  lines.push("DIA 7 â€” RevisiÃ³ brutal (sense fuet)");
+  lines.push("   QuÃ¨ has evitat? Per quÃ¨?");
+  lines.push("   I quina excusa t'ha sonat mÃ©s \"intelÂ·ligent\"?");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+
+  // Tancament
+  lines.push("I ARA, ESCOLTA AIXÃ’");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+  lines.push("SÃ­, t'he parlat dur.");
+  lines.push("PerquÃ¨ algÃº havia de fer-ho.");
+  lines.push("PerquÃ¨ portes massa temps escoltant mentides amables");
+  lines.push("que et deixen exactament on ets.");
+  lines.push("");
+  lines.push("PerÃ² aixÃ² no vol dir que no valguis.");
+  lines.push("Vol dir que VALS MASSA per seguir dormint.");
+  lines.push("");
+  lines.push("El tremolor que sents no Ã©s debilitat.");
+  lines.push("Ã‰s la prova que alguna cosa vol nÃ©ixer.");
+  lines.push("");
+  lines.push("No has de ser perfecte. No has de tenir-ho clar.");
+  lines.push("NomÃ©s has de fer el segÃ¼ent pas.");
+  lines.push("Petit. Ara.");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+
+  // Respostes
+  lines.push("LES TEVES RESPOSTES");
+  lines.push("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€");
+  lines.push("");
+  if (!answers?.length) {
+    lines.push("(Encara no hi ha respostes guardades)");
+  } else {
+    answers.forEach((a, i) => {
+      const q = (a.question || "").replace(/\s+/g, " ").trim();
+      const r = (a.response || "â€”").replace(/\s+/g, " ").trim();
+      lines.push(`${i + 1}. ${q}`);
+      lines.push(`   â†’ ${r}`);
+      lines.push("");
+    });
+  }
+
+  // Footer
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  lines.push("");
+  lines.push("                       El tremolor continua.");
+  lines.push("");
+  lines.push("                       â€” EdmondSystems Â· Tremolor");
+  lines.push("");
+  lines.push("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+
+  return lines.join("\n");
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// FUNCIONS UI
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function downloadText(filename: string, content: string) {
+  const BOM = "\uFEFF";
+  const blob = new Blob([BOM + content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// COMPONENT PRINCIPAL
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export default function InformePage() {
+  const router = useRouter();
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("tremor.answers.v1") || "[]";
+      const parsed = JSON.parse(raw);
+      setAnswers(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setAnswers([]);
+    }
+  }, []);
+
+  const stats = useMemo(() => statsFrom(answers), [answers]);
+  const patterns = useMemo(() => detectPatterns(answers), [answers]);
+  const informeText = useMemo(() => buildInformeTremolor(answers, patterns), [answers, patterns]);
+
+  const isComplete = stats.completed >= stats.total;
+  const isEmpty = stats.completed === 0;
+
+  const goToQuiz = () => router.push("/preguntes");
+
+  const resetProgress = () => {
+    if (window.confirm("Segur? PerdrÃ s el progrÃ©s actual.")) {
+      localStorage.removeItem("tremor.answers.v1");
+      router.push("/preguntes");
+    }
+  };
+
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // MODE PORTA v2 (0/15 i parcial)
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (!isComplete) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-zinc-950 via-black to-zinc-950 text-white">
+        {/* Header */}
+        <header className="border-b border-white/10 bg-black/80 backdrop-blur-md sticky top-0 z-20">
+          <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+            <h1 className="text-xl font-bold tracking-tight">Mapa del Tremolor</h1>
+            <button
+              onClick={() => router.push("/")}
+              className="text-sm text-white/40 hover:text-white transition"
+            >
+              â† Inici
+            </button>
+          </div>
+        </header>
+
+        <div className="max-w-4xl mx-auto px-6 py-16">
+          <section className="max-w-2xl mx-auto bg-white/5 border border-white/10 rounded-2xl p-8 md:p-12 text-center space-y-6">
+            {isEmpty ? (
+              <>
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+                  Encara no tens informe
+                </h2>
+                <p className="text-white/60 text-base md:text-lg">
+                  15 preguntes. 5 minuts. Cap resposta correcta.
+                </p>
+
+                <button
+                  onClick={goToQuiz}
+                  className="px-8 py-4 bg-white text-black font-bold rounded-xl hover:bg-white/90 transition text-lg"
+                >
+                  Entrar â†’
+                </button>
+
+                <p className="text-white/35 text-sm pt-2">
+                  Les respostes es queden al teu dispositiu. NingÃº mÃ©s les veu.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+                  Tens el mirall a mitges
+                </h2>
+                <p className="text-white/60 text-base md:text-lg">
+                  Has fet <strong className="text-white">{stats.completed}/{stats.total}</strong>. El que falta Ã©s on lâ€™Ombra sâ€™amaga.
+                </p>
+
+                {/* Progress bar */}
+                <div className="pt-2">
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full bg-white/80"
+                      style={{ width: `${Math.min(Math.max(stats.progress, 0), 100)}%` }}
+                    />
+                  </div>
+                  <div className="text-white/35 text-sm mt-2">
+                    ProgrÃ©s: {stats.progress}%
+                  </div>
+                </div>
+
+                <button
+                  onClick={goToQuiz}
+                  className="px-8 py-4 bg-white text-black font-bold rounded-xl hover:bg-white/90 transition text-lg"
+                >
+                  Continuar ({stats.completed}/{stats.total}) â†’
+                </button>
+
+                <div className="pt-2">
+                  <button
+                    onClick={resetProgress}
+                    className="text-white/30 hover:text-white/60 text-sm underline underline-offset-4 transition"
+                  >
+                    Tornar a comenÃ§ar
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // INFORME COMPLET (15/15) â€” TAL QUAL (amb millores mÃ­nimes)
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const fallback = "â€”";
+  const mask = trimLen(pickLast(answers, "mÃ scara"), 150) || fallback;
+  const loop = trimLen(pickLast(answers, "loop"), 150) || fallback;
+  const fear = trimLen(pickLast(answers, "por") || pickLast(answers, "fracas"), 150) || fallback;
+  const whoAlone = trimLen(pickLast(answers, "ningÃº mira"), 150) || fallback;
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(informeText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = informeText;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {}
+    }
+  };
+
+  // Donut
+  const Donut = () => {
+    const tu = stats.counts.tu || 0;
+    const ego = stats.counts.ego || 0;
+    const ombra = stats.counts.ombra || 0;
+    const total = Math.max(tu + ego + ombra, 1);
+
+    const segments = [
+      { pct: tu / total, color: "#facc15", label: "Tu", count: tu },
+      { pct: ego / total, color: "#3b82f6", label: "Ego", count: ego },
+      { pct: ombra / total, color: "#a855f7", label: "Ombra", count: ombra },
+    ];
+
+    const R = 45;
+    const C = 120;
+    const P = 2 * Math.PI * R;
+    let offset = 0;
+
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
+        <svg width={C} height={C} viewBox={`0 0 ${C} ${C}`}>
+          <circle cx={C / 2} cy={C / 2} r={R} fill="none" stroke="#1f1f1f" strokeWidth="20" />
+          <g transform={`rotate(-90 ${C / 2} ${C / 2})`}>
+            {segments.map((s, i) => {
+              const len = s.pct * P;
+              const circle = (
+                <circle
+                  key={i}
+                  cx={C / 2}
+                  cy={C / 2}
+                  r={R}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth="20"
+                  strokeDasharray={`${len} ${P - len}`}
+                  strokeDashoffset={-offset}
+                  className="transition-all duration-500"
+                />
+              );
+              offset += len;
+              return circle;
+            })}
+          </g>
+        </svg>
+        <div className="space-y-3">
+          {segments.map((s, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <span className="w-4 h-4 rounded-full" style={{ background: s.color }} />
+              <span className="text-white/60 w-16">{s.label}</span>
+              <span className="text-white font-bold text-lg">{Math.round(s.pct * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Accions personalitzades per UI
+  const getAccio1 = () => {
+    if (patterns.pleaser || patterns.clown) {
+      return {
+        title: 'Un "NO" petit (tu que vas de maja/o)',
+        examples: [
+          '"No puc avui. Ho fem demÃ ."',
+          '"AixÃ² no m\'encaixa. Passo."',
+          '"No em va bÃ© aquest to. Parlem bÃ© o no parlem."',
+        ],
+        nota: "No Ã©s agressiu. Ã‰s higiene.",
+      };
+    }
+    if (patterns.control) {
+      return {
+        title: 'Un "NO" petit (tu que controles tot)',
+        examples: ['"AixÃ² ho delego. No ho superviso."', '"No opino. Fes-ho com vegis."', '"No Ã©s problema meu. SegÃ¼ent."'],
+        nota: "Deixar anar no Ã©s perdre. Ã‰s respirar.",
+      };
+    }
+    return {
+      title: 'Un "NO" petit on normalment diries "sÃ­"',
+      examples: ['"No puc avui. Ho fem demÃ ."', '"AixÃ² no m\'encaixa. Passo."', '"No em va bÃ© aquest to. Parlem bÃ© o no parlem."'],
+      nota: "No Ã©s agressiu. Ã‰s higiene.",
+    };
+  };
+
+  const getAccio2 = () => {
+    if (patterns.postpone) {
+      return {
+        title: 'Regla 10\' (tu que sempre dius "demÃ ")',
+        examples: ["10' fent AIXÃ’ que portes posposant. Ara.", "No tot. NomÃ©s 10 minuts. I veus quÃ¨ passa."],
+        nota: "El demÃ  no existeix. NomÃ©s hi ha ara.",
+      };
+    }
+    return {
+      title: "Regla 10' â€” comenÃ§a i prou",
+      examples: ["10' caminar sense mÃºsica (sÃ­, sense anestÃ¨sia).", "10' ordenar un sol racÃ³ (no tota la casa).", "10' escriure el que estÃ s evitant en 5 lÃ­nies."],
+      nota: "El teu cervell negocia. Tu no.",
+    };
+  };
+
+  const getAccio3 = () => {
+    if (patterns.invisible) {
+      return {
+        title: "Acte de visibilitat (tu que t'amagues)",
+        examples: ["Un missatge honest. Sense excuses. Curt.", '"Em costa. Necessito parlar 10 minuts."', "Deixa que et vegin. NomÃ©s una mica."],
+        nota: "Visibilitat no Ã©s drama. Ã‰s claredat.",
+      };
+    }
+    if (patterns.failure) {
+      return {
+        title: "Acte de visibilitat (tu que et sents fracÃ s)",
+        examples: ['Diu en veu alta: "He fracassat en X. I segueixo aquÃ­."', 'A la parella: "Em fa por aixÃ²."', "El fracÃ s no et defineix. La rendiciÃ³ sÃ­."],
+        nota: "Ets mÃ©s que els teus errors.",
+      };
+    }
+    return {
+      title: "Acte de visibilitat: una veritat o una ajuda",
+      examples: ['A la parella: "Em fa por aixÃ². No em surt dir-ho bÃ©, perÃ² Ã©s aixÃ²."', 'A un amic: "Em costa. Necessito parlar 10 minuts."', 'A la feina: "AixÃ² ho puc fer, aixÃ² no."'],
+      nota: "Visibilitat no Ã©s drama. Ã‰s claredat.",
+    };
+  };
+
+  const accio1 = getAccio1();
+  const accio2 = getAccio2();
+  const accio3 = getAccio3();
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-zinc-950 via-black to-zinc-950 text-white">
+      {/* Header */}
+      <header className="border-b border-white/10 bg-black/80 backdrop-blur-md sticky top-0 z-20">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold tracking-tight">Mapa del Tremolor</h1>
+          <button onClick={() => router.push("/")} className="text-sm text-white/40 hover:text-white transition">
+            â† Inici
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-6 py-12 space-y-16">
+        {/* Hero */}
+        <section className="text-center space-y-6">
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">El teu informe</h2>
+          <p className="text-lg text-white/50 max-w-xl mx-auto">
+            AixÃ² no Ã©s un test de personalitat. Ã‰s un mirall.<br />
+            I els miralls no et volen fer sentir bÃ©.<br />
+            <span className="text-white/80 font-medium">Et volen fer responsable.</span>
+          </p>
+        </section>
+
+        {/* AvÃ­s Ã¨tic */}
+        <section className="bg-red-950/30 border border-red-500/20 rounded-xl p-6">
+          <p className="text-red-200/80 text-sm leading-relaxed">
+            <strong className="text-red-300">Nota important:</strong> AixÃ² NO substitueix terÃ pia, medicaciÃ³ ni cap professional.
+            Si estÃ s en crisi o tens idees d'autolesiÃ³: <strong>para aquÃ­</strong> i parla amb un psicÃ²leg, psiquiatre o metge.
+            AixÃ² Ã©s un complement. Un cop de llum. No una sala d'urgÃ¨ncies.
+          </p>
+        </section>
+
+        {/* Stats */}
+        <section className="grid grid-cols-3 gap-4">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
+            <div className="text-4xl font-bold">{stats.progress}%</div>
+            <div className="text-sm text-white/40 mt-1">ProgrÃ©s</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
+            <div className="text-4xl font-bold">
+              {stats.completed}/{stats.total}
+            </div>
+            <div className="text-sm text-white/40 mt-1">Respostes</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
+            <div className="text-2xl font-bold">{capitalize(stats.dominantVoice)}</div>
+            <div className="text-sm text-white/40 mt-1">Veu dominant</div>
+          </div>
+        </section>
+
+        {/* Donut */}
+        <section className="bg-white/5 border border-white/10 rounded-2xl p-8">
+          <Donut />
+        </section>
+
+        {/* 4 Miralls */}
+        <section className="space-y-6">
+          <h3 className="text-2xl font-bold">El que has revelat</h3>
+          <div className="grid gap-4">
+            {[
+              {
+                icon: "ðŸŽ­",
+                label: "La teva mÃ scara",
+                value: mask,
+                subtext: "No Ã©s qui ets. Ã‰s el que fas perquÃ¨ no et vegin.",
+              },
+              {
+                icon: "ðŸ”„",
+                label: "El loop que es repeteix",
+                value: loop,
+                subtext: "La teva rutina no Ã©s vida. Ã‰s un mecanisme per no sentir.",
+              },
+              {
+                icon: "ðŸ’”",
+                label: "La ferida que protegeixes",
+                value: fear,
+                subtext: "AixÃ² no Ã©s debilitat. Ã‰s la factura d'anys fent veure que no passa res.",
+              },
+              {
+                icon: "ðŸ‘",
+                label: "Qui ets quan ningÃº mira",
+                value: whoAlone,
+                subtext: "AquÃ­ hi ha la veritat. I fa rÃ bia. PerquÃ¨ Ã©s simple.",
+              },
+            ].map((item, i) => (
+              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-6">
+                <div className="flex items-center gap-2 text-sm text-white/40 mb-2">
+                  <span className="text-lg">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+                <div className="text-white text-xl font-medium mb-2">"{item.value}"</div>
+                <div className="text-white/40 text-sm italic">{item.subtext}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Veritat incÃ²moda */}
+        <section className="bg-zinc-900/50 border border-white/10 rounded-2xl p-8 text-center space-y-4">
+          <h3 className="text-xl font-bold text-white/90">Una veritat incÃ²moda (perÃ² reversible)</h3>
+          <div className="space-y-2 text-white/60">
+            <p>No estÃ s condemnat. PerÃ² tampoc estÃ s "bloquejat".</p>
+            <p className="text-white text-xl font-bold">EstÃ s repetint.</p>
+            <p className="text-sm pt-2">
+              I sÃ­: es pot revertir sense heroÃ¯citats. Sense pagar un "preu alt"...<br />
+              PerquÃ¨ el preu alt <strong className="text-white">ja el pagues ara</strong>: en energia, en soroll i en autoengany.
+            </p>
+          </div>
+        </section>
+
+        {/* 3 Accions */}
+        <section className="space-y-6">
+          <div>
+            <h3 className="text-2xl font-bold">3 accions per avui</h3>
+            <p className="text-white/40 text-sm mt-1">No demÃ . Avui. El tremolor no espera.</p>
+          </div>
+
+          <div className="space-y-4">
+            {[accio1, accio2, accio3].map((accio, i) => (
+              <div key={i} className="bg-gradient-to-br from-amber-950/30 to-black border border-amber-500/20 rounded-xl p-6">
+                <div className="text-amber-300 font-bold text-lg mb-3">
+                  {i + 1}. {accio.title}
+                </div>
+                <ul className="space-y-2 mb-4">
+                  {accio.examples.map((ex, j) => (
+                    <li key={j} className="text-white/70 text-sm flex items-start gap-2">
+                      <span className="text-amber-500">Â·</span>
+                      <span>{ex}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="text-amber-200/60 text-sm italic">ðŸ‘‰ {accio.nota}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Pla 7 dies */}
+        <section className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-6">
+          <div>
+            <h3 className="text-2xl font-bold">Pla 7 dies</h3>
+            <p className="text-white/40 text-sm">Sense poesia. Amb efecte.</p>
+          </div>
+
+          <div className="grid gap-3">
+            {[
+              { dia: "1", text: "NO + 10' acciÃ³", desc: "Un lÃ­mit petit + una acciÃ³ petita." },
+              { dia: "2", text: "Talla 1 anestÃ¨sia 24h", desc: "Pantalla / sucre / tabac / alcohol: UNA." },
+              { dia: "3", text: '1 lÃ­mit en 1 frase', desc: '"Ho entenc, perÃ² no ho farÃ©."' },
+              { dia: "4", text: "10' ordre", desc: "Un objecte o un espai = ment menys bruta." },
+              { dia: "5", text: "Frase far + 10' pas", desc: '"Aquesta setmana trio X" + acciÃ³.' },
+              { dia: "6", text: "Acte de visibilitat", desc: "La conversa que portes dies evitant." },
+              { dia: "7", text: "RevisiÃ³ brutal", desc: 'QuÃ¨ has evitat? Quina excusa t\'ha sonat mÃ©s "intelÂ·ligent"?' },
+            ].map((d, i) => (
+              <div key={i} className="flex items-start gap-4 bg-black/30 rounded-lg p-4">
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold shrink-0">{d.dia}</div>
+                <div>
+                  <div className="text-white font-medium">{d.text}</div>
+                  <div className="text-white/40 text-sm">{d.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Tancament */}
+        <section className="text-center space-y-6 py-8">
+          <h3 className="text-2xl font-bold">I ara, escolta aixÃ²</h3>
+          <div className="max-w-2xl mx-auto space-y-4 text-white/60 leading-relaxed">
+            <p>
+              SÃ­, t'he parlat dur. PerquÃ¨ algÃº havia de fer-ho.<br />
+              PerquÃ¨ portes massa temps escoltant mentides amables<br />
+              que et deixen exactament on ets.
+            </p>
+            <p className="text-white text-lg font-medium">
+              PerÃ² aixÃ² no vol dir que no valguis.<br />
+              Vol dir que vals massa per seguir dormint.
+            </p>
+            <p>
+              El tremolor que sents no Ã©s debilitat.<br />
+              Ã‰s la prova que alguna cosa vol nÃ©ixer.
+            </p>
+            <p className="text-white/80 italic">
+              No has de ser perfecte. No has de tenir-ho clar.<br />
+              NomÃ©s has de fer el segÃ¼ent pas. Petit. Ara.
+            </p>
+            <p className="text-white/50">
+              I si caus, caus. Ja t'aixecarÃ s.<br />
+              PerquÃ¨ aixÃ² Ã©s el que fas. El que sempre has fet.
+            </p>
+          </div>
+        </section>
+
+        {/* Descarrega */}
+        <section className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-4">
+          <h3 className="text-xl font-semibold">Guarda el teu informe</h3>
+          <p className="text-white/40 text-sm">
+            Per quan el soroll torni a guanyar.<br />
+            Per recordar el que ja saps... i oblides quan et convÃ©.
+          </p>
+          <div className="flex flex-wrap gap-3 pt-4">
+            <button
+              onClick={() => downloadText("mapa-del-tremolor.txt", informeText)}
+              className="px-6 py-3 bg-white text-black font-semibold rounded-xl hover:bg-white/90 transition"
+            >
+              Guardar-ho (per quan et menteixis)
+            </button>
+            <button
+              onClick={onCopy}
+              className="px-6 py-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/15 transition"
+            >
+              {copied ? "Copiat âœ“" : "Copiar el mirall"}
+            </button>
+          </div>
+        </section>
+
+        {/* CTA El Tremolor Complet */}
+        <section className="relative overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/50 via-black to-indigo-950/50" />
+          <div className="relative p-8 md:p-12 space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-3xl font-bold text-white">I ara quÃ¨?</h3>
+              <div className="space-y-3 text-white/60">
+                <p>Ja ho has vist: patrÃ³, mÃ scara, loop.</p>
+                <p>Ara tens dues opcions:</p>
+              </div>
+              <div className="space-y-2 text-white/70 text-sm pl-4 border-l-2 border-white/20">
+                <p>1. Fer el que fas sempre: guardar-ho, dir "ja ho mirarÃ©", i tornar al soroll.</p>
+                <p>2. Continuar tremolant... perÃ² amb direcciÃ³.</p>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-white/10">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                <div className="flex-1 space-y-1">
+                  <div className="text-xl font-bold text-white">El Tremolor Complet</div>
+                  <div className="text-white/40 text-sm">7 dies + profunditat + el que no s'escriu quan tens por de mirar-ho</div>
+                </div>
+                <button
+                  onClick={() => window.open("https://digiteps.com/tremolor-complet", "_blank")}
+                  className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition text-lg whitespace-nowrap"
+                >
+                  No em vull escapar
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Reiniciar (complet) */}
+        <section className="text-center py-8">
+          <button
+            onClick={() => {
+              if (window.confirm("Segur que vols esborrar les teves respostes i tornar a comenÃ§ar?")) {
+                localStorage.removeItem("tremor.answers.v1");
+                router.push("/v2/pro");
+              }
+            }}
+            className="text-white/30 hover:text-white/60 text-sm underline underline-offset-4 transition"
+          >
+            Tornar a comenÃ§ar (esborrar i repetir)
+          </button>
+        </section>
+
+        {/* Footer */}
+        <footer className="text-center py-12 border-t border-white/10">
+          <p className="text-white/30 text-lg tracking-wide">El tremolor continua.</p>
+          <p className="text-white/15 text-sm mt-3">EdmondSystems Â· Tremolor</p>
+        </footer>
+      </div>
+    </main>
+  );
+}
+

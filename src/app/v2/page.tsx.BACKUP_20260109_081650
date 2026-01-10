@@ -1,0 +1,890 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+/**
+ * TREMOLOR V2 — Nivell A (sense IA)
+ * Fixos implementats:
+ * 1) Detecció real de risc (autolesió / suïcidi / violència) + per nit
+ * 2) Tall real: si risc alt => no avançar, no informe, no exports
+ * 3) Informe: sense “paraules clau” ni “detall que destaca” (ni a UI ni a exports)
+ */
+
+type NightId = "n1" | "n2" | "n3" | "n4" | "n5";
+type RiskKind = "none" | "profanity" | "violence_soft" | "violence_high" | "self_harm_high";
+type RiskLevel = "none" | "soft" | "high";
+
+type Risk = { kind: RiskKind; level: RiskLevel; hits: string[]; matched: string[] };
+
+type Night = {
+  id: NightId;
+  label: string;
+  title: string;
+  question: string;
+  starters: string[];
+};
+
+const STORAGE_KEY = "tremolor_v2_answers";
+
+const NIGHTS: Night[] = [
+  {
+    id: "n1",
+    label: "NIT 1 · LA PORTA",
+    title: "La porta",
+    question: "Què has entès de tu que abans no volies veure?",
+    starters: ["He vist que…", "M’he adonat que…", "La veritat és que…", "Em costa acceptar que…"],
+  },
+  {
+    id: "n2",
+    label: "NIT 2 · LA MÀSCARA",
+    title: "La màscara",
+    question: "Quina màscara utilitzes per no ser vist/a? I què t’estalvia?",
+    starters: ["Faig veure que…", "Em poso la màscara de…", "Això m’estalvia sentir…", "Ho faig per evitar…"],
+  },
+  {
+    id: "n3",
+    label: "NIT 3 · EL LOOP",
+    title: "El loop",
+    question: "Quin patró es repeteix i et fa perdre energia (sempre igual, amb excuses diferents)?",
+    starters: ["El guió de sempre és…", "La meva excusa preferida és…", "Torno a caure en…", "Quan em poso així, sempre…"],
+  },
+  {
+    id: "n4",
+    label: "NIT 4 · LA FERIDA",
+    title: "La ferida",
+    question: "Quina ferida protegeixes com si et salvés… però t’està cobrant interessos?",
+    starters: ["Em fa mal quan…", "Ho amago perquè…", "Això em toca perquè…", "Em tanco quan…"],
+  },
+  {
+    id: "n5",
+    label: "NIT 5 · EL PAS",
+    title: "El pas",
+    question: "Quin és el pas petit i real que estàs evitant (i què et fa por perdre si el fas)?",
+    starters: ["El pas que evito és…", "Em fa por perdre…", "Si ho faig, temo que…", "El que no vull admetre és…"],
+  },
+];
+
+function normalize(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hashString(s: string) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+function pickVariant<T>(seed: string, variants: T[]) {
+  const idx = hashString(seed) % variants.length;
+  return variants[idx];
+}
+
+function sanitizeForExport(s: string) {
+  return (s || "").replace(/\r/g, "").trim();
+}
+
+/**
+ * Detecció de risc:
+ * - Soft: profanitat / insults
+ * - High:
+ *   a) autolesió/suïcidi (intenció o ideació explícita)
+ *   b) violència/amenaces (intenció explícita o autoidentificació perillosa)
+ * - També detecta paraules “perilloses” (assassí/violador/depredador) encara que no hi hagi insult.
+ */
+function detectRisk(text: string): Risk {
+  const raw = text || "";
+  const t = normalize(raw);
+  if (!t) return { kind: "none", level: "none", hits: [], matched: [] };
+
+  const matched: string[] = [];
+
+  const test = (rx: RegExp, label: string) => {
+    if (rx.test(t)) {
+      matched.push(label);
+      return true;
+    }
+    return false;
+  };
+
+  // 1) AUTODESTRUCCIÓ / SUÏCIDI (HIGH)
+  const selfHarmHigh =
+    test(/\b(em vull matar|em matare|matar\-me|suicid|suicidi|autolesio|no vull viure|vull morir|vull desapar)\b/g, "CAT_autolesio") ||
+    test(/\b(me quiero matar|me voy a matar|suicid|suicidio|autolesion|no quiero vivir|quiero morir)\b/g, "ES_autolesio") ||
+    test(/\b(kill myself|suicide|self harm|self-harm)\b/g, "EN_autolesio");
+
+  if (selfHarmHigh) {
+    return {
+      kind: "self_harm_high",
+      level: "high",
+      hits: ["autolesió/suïcidi"],
+      matched,
+    };
+  }
+
+  // 2) VIOLÈNCIA (HIGH quan hi ha amenaça o intenció explícita)
+  const violenceIntentHigh =
+    test(/\b(et matare|el matare|la matare|els matare|les matare|els haig de matar|li fotare una pallissa|li fotre una pallissa|li pegare|li pegar[eé]|te voy a matar|lo voy a matar|la voy a matar|los voy a matar|voy a matarl[oa]s?|le voy a pegar|voy a pegarle)\b/g, "amenaca_intencio") ||
+    test(/\b(apu(n|ñ)alar|ganivet|arma|pistola|escopeta)\b/g, "armes_o_agressio");
+
+  // 3) VIOLÈNCIA (HIGH quan hi ha autoidentificació alarmant)
+  const violenceIdentityHigh =
+    test(/\b(soc un assassi|soc un assassi en serie|soc un violador|soc un depredador)\b/g, "CAT_identitat_perill") ||
+    test(/\b(soy un asesino|soy un asesino en serie|soy un violador|soy un depredador)\b/g, "ES_identitat_perill");
+
+  if (violenceIntentHigh || violenceIdentityHigh) {
+    return {
+      kind: "violence_high",
+      level: "high",
+      hits: ["violència"],
+      matched,
+    };
+  }
+
+  // 4) VIOLÈNCIA (SOFT quan són paraules de risc sense intenció explícita)
+  const violenceSoft =
+    test(/\b(assassi|assassi en serie|asesino|asesina|violador|violadora|depredador|depredadora|violar|rape|agressio|agresion)\b/g, "violencia_paraules") ||
+    test(/\b(matar|pallissa|pallises|pallisa|pallisar|pegar|golpe)\b/g, "violencia_generica");
+
+  if (violenceSoft) {
+    return {
+      kind: "violence_soft",
+      level: "soft",
+      hits: ["contingut violent"],
+      matched,
+    };
+  }
+
+  // 5) PROFANITAT / INSULTS (SOFT)
+  const profanitySoft =
+    test(/\b(cabrons?|cabron(es)?|malparits?|fill de puta|hijo de puta|me cago|gilipollas?|idiot(a|es)?|tonto(s)?|mierda|merda|puta|puto|collons?|cojones?)\b/g, "profanitat");
+
+  if (profanitySoft) {
+    return {
+      kind: "profanity",
+      level: "soft",
+      hits: ["profanitat"],
+      matched,
+    };
+  }
+
+  return { kind: "none", level: "none", hits: [], matched: [] };
+}
+
+type Signals = {
+  anger: number;
+  fear: number;
+  shame: number;
+  control: number;
+  exhaustion: number;
+  guilt: number;
+  sadness: number;
+};
+
+function analyzeSignals(text: string): Signals {
+  const t = normalize(text);
+  const score = (words: string[]) => words.reduce((acc, w) => (t.includes(w) ? acc + 1 : acc), 0);
+  return {
+    anger: score(["rabia", "rabbia", "enfadat", "enfadada", "odio", "odi", "violent", "pallissa", "matar", "fotre", "collons", "cabr"]),
+    fear: score(["por", "tinc por", "em fa por", "panico", "panic", "angoixa", "ansietat", "no sabre", "no se que fer"]),
+    shame: score(["vergonya", "vergüenza", "em fa vergonya", "quedare malament", "que diran", "soc un monstre", "no soc bo"]),
+    control: score(["control", "ho vull tot", "necessito", "no puc", "ha de ser", "perfect", "perfeccion", "he de"]),
+    exhaustion: score(["cansat", "cansada", "esgotat", "esgotada", "no puc mes", "no puc més", "fatiga", "buit", "apagat"]),
+    guilt: score(["culpa", "culpable", "m ho mereixo", "he fallat", "fracassat"]),
+    sadness: score(["trist", "trista", "ploro", "sol", "sola", "ningu", "ningú", "buidor", "desesper"]),
+  };
+}
+
+function dominantSignal(s: Signals): keyof Signals | "none" {
+  const entries = Object.entries(s) as Array<[keyof Signals, number]>;
+  entries.sort((a, b) => b[1] - a[1]);
+  const top = entries[0];
+  if (!top || top[1] <= 0) return "none";
+  return top[0];
+}
+
+function buildMirror(night: Night, answerRaw: string) {
+  const answer = (answerRaw || "").trim();
+  const sig = analyzeSignals(answer);
+  const dom = dominantSignal(sig);
+  const seed = `${night.id}::${answer}`;
+
+  // IMPORTANT: sense citar fragments ni paraules. Només lectura funcional.
+  const anchorLine = (() => {
+    if (!answer.trim()) return "Si no surt res, no és buit: és defensa. Escriu una frase simple i segueix.";
+    return "El que has escrit apunta a un mecanisme concret. No cal embellir-ho: cal veure-ho.";
+  })();
+
+  const frameByNight = {
+    n1: [
+      "Això no és un descobriment. És una admissió.",
+      "La porta no s’obre amb idees. S’obre amb una veritat que ja no pots desdir.",
+      "Quan poses paraules al que evitaves, deixes de ser víctima del teu propi guió.",
+    ],
+    n2: [
+      "Això és una protecció, no una identitat.",
+      "La màscara et dona control social… però et roba intimitat i descans.",
+      "El paper que fas et salva per fora i et cobra per dins.",
+    ],
+    n3: [
+      "Un loop no és mala sort: és una rutina emocional ben entrenada.",
+      "Quan el guió és sempre el mateix, el canvi no és pensar més: és interrompre’l.",
+      "Si el patró es repeteix, és perquè et dona algun “benefici” ocult.",
+    ],
+    n4: [
+      "El dolor que tapes no desapareix: negocia el preu i te’l cobra amb interessos.",
+      "Aquí no cal valentia de cartró. Cal honestedat i un límit.",
+      "Una ferida protegida sembla força… fins que et deixa sense aire.",
+    ],
+    n5: [
+      "El pas petit és petit només al calendari. Per dins, és un terratrèmol.",
+      "El teu cervell negociarà. És el seu ofici. Tu decideixes si avui el compres.",
+      "No cal ser heroic/a. Cal un compromís avui. Sense teatre.",
+    ],
+  } as const;
+
+  const frame = pickVariant(seed + "::frame", frameByNight[night.id]);
+
+  const reading = (() => {
+    const base = (() => {
+      switch (dom) {
+        case "anger":
+          return [
+            "Aquí hi ha ràbia. Sovint és una tapa: a sota hi ha por o vergonya.",
+            "La ràbia et dona energia ràpida… i et roba precisió. Tu necessites precisió.",
+          ];
+        case "fear":
+          return [
+            "Això fa olor de por: por al canvi, por a quedar exposat/ada, por a no saber què fer.",
+            "Un pas segur guanya a un pas valent. Sempre.",
+          ];
+        case "shame":
+          return [
+            "La vergonya vol silenci. I tu avui l’has traïda escrivint.",
+            "Això no és lucidesa: és vergonya fent-se passar per veritat absoluta.",
+          ];
+        case "control":
+          return [
+            "Quan busques control, normalment estàs anestesiant incertesa.",
+            "El control dona pau falsa: dura minuts i cobra dies.",
+          ];
+        case "exhaustion":
+          return [
+            "Això sona a cansament profund: el de sostenir-te sense dir-ho.",
+            "Quan el cos està buit, el cap es torna cruel. No l’hi compris.",
+          ];
+        case "guilt":
+          return [
+            "La culpa és una manera elegant de continuar lligat/ada al passat.",
+            "Això no és reparació: és càstig amb bona educació.",
+          ];
+        case "sadness":
+          return [
+            "Això té tristesa a dins. I la tristesa no es discuteix: es cuida.",
+            "No és motivació el que falta: és presència i una acció petita.",
+          ];
+        default:
+          return [
+            "No estàs “bé” ni “malament”. Estàs mostrant un mecanisme.",
+            "Això no es resol amb teoria: es resol amb un pas petit avui.",
+          ];
+      }
+    })();
+    return pickVariant(seed + "::reading", base);
+  })();
+
+  const translation = (() => {
+    const byNight = {
+      n1: [
+        "Deixa de justificar. Digues-ho clar.",
+        "El primer pas és mirar-ho sense maquillatge.",
+        "La porta s’obre quan deixes de negociar amb la veritat.",
+      ],
+      n2: [
+        "La màscara et protegeix… i t’aïlla.",
+        "Si sempre ‘funciones’, mai descanses.",
+        "Actuar salva la imatge i mata la intimitat.",
+      ],
+      n3: [
+        "Si el veus, ja el pots tallar.",
+        "Interrompre val més que entendre perfecte.",
+        "El punt clau és el primer segon del loop.",
+      ],
+      n4: [
+        "Protegir t’ha servit… fins avui.",
+        "Aquí el coratge és posar un límit i demanar suport.",
+        "Una ferida sense veu parla amb símptomes.",
+      ],
+      n5: [
+        "Un pas avui > una promesa demà.",
+        "Si et tremola, és que és real.",
+        "El mínim digne és millor que el gran discurs.",
+      ],
+    } as const;
+
+    const twist = (() => {
+      switch (dom) {
+        case "anger":
+          return ["Primer pausa. Després paraules."];
+        case "fear":
+          return ["Un pas segur guanya a un pas valent."];
+        case "shame":
+          return ["La vergonya vol que callis. Avui no."];
+        case "control":
+          return ["Un 5% menys de control és aire."];
+        case "exhaustion":
+          return ["Descans és direcció, no rendició."];
+        default:
+          return [];
+      }
+    })();
+
+    const candidates = [...byNight[night.id], ...twist];
+    return pickVariant(seed + "::t", candidates);
+  })();
+
+  const question = (() => {
+    const byNight = {
+      n1: [
+        "Quina part de tu vol seguir fent-se l’innocent… i què hi guanya?",
+        "Què defenses quan et costa veure això?",
+        "Què estàs evitant admetre (sense educació)?",
+      ],
+      n2: [
+        "Què et costa cada setmana mantenir aquest paper en peu?",
+        "Amb qui et permets ser simple, sense performance?",
+        "Què passaria si avui no actuessis 10 minuts?",
+      ],
+      n3: [
+        "Quin és el benefici ocult del bucle (control, anestèsia, evitar vergonya…)?",
+        "Quin és el primer segon on s’encén?",
+        "Quina excusa ‘intel·ligent’ t’està robant vida?",
+      ],
+      n4: [
+        "Si fos un nen/nena: què necessitaria sentir ara mateix?",
+        "Què necessites per estar una mica més a salvo avui?",
+        "Quin límit no has posat per por del conflicte?",
+      ],
+      n5: [
+        "Quin pas petit faràs en 24h encara que et tremoli tot?",
+        "Què perds si ho fas… i què perds si no?",
+        "Quin és el ‘mínim digne’ d’avui, sense negociar?",
+      ],
+    } as const;
+    return pickVariant(seed + "::q", byNight[night.id]);
+  })();
+
+  return { anchorLine, frame, reading, translation, question };
+}
+
+function formatReportTxt(answers: Record<NightId, string>) {
+  const lines: string[] = [];
+  lines.push("TREMOLOR.APP — INFORME (V2)");
+  lines.push("");
+  lines.push("Cinc nits. Cinc miralls. No està “bé” ni “malament”. Està escrit.");
+  lines.push("");
+
+  for (const night of NIGHTS) {
+    const a = sanitizeForExport(answers[night.id] || "");
+    const m = buildMirror(night, a);
+
+    lines.push(night.label);
+    lines.push(night.question);
+    lines.push("");
+    lines.push("EL QUE HAS ESCRIT:");
+    lines.push(a || "—");
+    lines.push("");
+    lines.push("MIRALL (REFORMULAT):");
+    lines.push(m.frame);
+    lines.push(m.anchorLine);
+    lines.push(m.reading);
+    lines.push("");
+    lines.push(`TRADUCCIÓ: ${m.translation}`);
+    lines.push("");
+    lines.push("PREGUNTA:");
+    lines.push(m.question);
+    lines.push("");
+    lines.push("— — —");
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildWordHtml(answers: Record<NightId, string>) {
+  const esc = (s: string) =>
+    (s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const section = (title: string, body: string) => `
+    <div style="margin:18px 0 8px; font-weight:700; font-size:16px;">${esc(title)}</div>
+    <div style="margin:0 0 8px; white-space:pre-wrap; line-height:1.35;">${esc(body)}</div>
+  `;
+
+  let html = `
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tremolor — Informe</title>
+  </head>
+  <body style="font-family: Georgia, 'Times New Roman', serif; font-size:12pt;">
+    <div style="font-size:20px; font-weight:800; margin-bottom:8px;">TREMOLOR.APP — INFORME (V2)</div>
+    <div style="margin-bottom:14px;">Cinc nits. Cinc miralls. No està “bé” ni “malament”. Està escrit.</div>
+  `;
+
+  for (const night of NIGHTS) {
+    const a = sanitizeForExport(answers[night.id] || "");
+    const m = buildMirror(night, a);
+
+    html += `<hr style="border:none;border-top:1px solid #ddd; margin:16px 0;" />`;
+    html += section(night.label, night.question);
+    html += section("El que has escrit", a || "—");
+    html += section(
+      "Mirall (reformulat)",
+      `${m.frame}\n${m.anchorLine}\n${m.reading}\n\nTraducció: ${m.translation}\n\n${m.question}`
+    );
+  }
+
+  html += `
+    <div style="margin-top:18px; color:#555; font-size:10pt;">
+      EdmondSystems · Tremolor (V2) — Les respostes es queden al teu dispositiu
+    </div>
+  </body></html>`;
+
+  return html;
+}
+
+export default function TremolorV2Page() {
+  const [view, setView] = useState<"landing" | "questions" | "report" | "safety">("landing");
+  const [answers, setAnswers] = useState<Record<NightId, string>>({ n1: "", n2: "", n3: "", n4: "", n5: "" });
+  const [activeIdx, setActiveIdx] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setAnswers((prev) => ({ ...prev, ...JSON.parse(raw) }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+    } catch {}
+  }, [answers]);
+
+  const progress = useMemo(() => {
+    const filled = NIGHTS.filter((n) => (answers[n.id] || "").trim().length > 0).length;
+    return Math.round((filled / NIGHTS.length) * 100);
+  }, [answers]);
+
+  // RISC PER NIT
+  const riskByNight = useMemo(() => {
+    const out = {} as Record<NightId, Risk>;
+    for (const n of NIGHTS) out[n.id] = detectRisk(answers[n.id] || "");
+    return out;
+  }, [answers]);
+
+  // RISC GLOBAL (si qualsevol nit és HIGH => HIGH)
+  const globalHigh = useMemo(() => NIGHTS.some((n) => riskByNight[n.id].level === "high"), [riskByNight]);
+
+  const currentNight = NIGHTS[activeIdx];
+  const currentRisk = riskByNight[currentNight.id];
+
+  useEffect(() => {
+    if (view === "questions") setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [view, activeIdx]);
+
+  function resetAll() {
+    setAnswers({ n1: "", n2: "", n3: "", n4: "", n5: "" });
+    setActiveIdx(0);
+    setView("landing");
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  }
+
+  function insertStarter(starter: string) {
+    const cur = answers[currentNight.id] || "";
+    if (cur.trim().length) return;
+    setAnswers((p) => ({ ...p, [currentNight.id]: starter + " " }));
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }
+
+  // TALL REAL
+  function goNext() {
+    if (currentRisk.level === "high") {
+      setView("safety");
+      return;
+    }
+    const next = activeIdx + 1;
+    if (next < NIGHTS.length) setActiveIdx(next);
+    else {
+      if (globalHigh) setView("safety");
+      else setView("report");
+    }
+  }
+
+  function goPrev() {
+    setActiveIdx((i) => Math.max(0, i - 1));
+  }
+
+  function exportTxt() {
+    const txt = formatReportTxt(answers);
+    downloadBlob("tremolor-informe-v2.txt", new Blob([txt], { type: "text/plain;charset=utf-8" }));
+  }
+
+  function exportWord() {
+    const html = buildWordHtml(answers);
+    downloadBlob("tremolor-informe-v2.doc", new Blob([html], { type: "application/msword;charset=utf-8" }));
+  }
+
+  function printPdf() {
+    window.print();
+  }
+
+  const tremorStyle = (
+    <style jsx global>{`
+      @keyframes tremolor {
+        0% { transform: translate(0,0) rotate(0deg); }
+        12% { transform: translate(-1.4px, 1.0px) rotate(-0.14deg); }
+        24% { transform: translate(1.6px, -1.2px) rotate(0.16deg); }
+        36% { transform: translate(-1.9px, -0.8px) rotate(-0.18deg); }
+        48% { transform: translate(2.0px, 0.9px) rotate(0.14deg); }
+        60% { transform: translate(-1.1px, 1.5px) rotate(-0.12deg); }
+        72% { transform: translate(1.3px, -1.4px) rotate(0.16deg); }
+        84% { transform: translate(-1.6px, 0.8px) rotate(-0.16deg); }
+        100% { transform: translate(0,0) rotate(0deg); }
+      }
+      .tremolorTitle { display:inline-block; animation: tremolor 0.95s infinite; transform-origin:50% 50%; }
+      @media (prefers-reduced-motion: reduce) { .tremolorTitle { animation:none !important; } }
+      @media print {
+        .no-print { display:none !important; }
+        body { background:#fff !important; color:#000 !important; }
+      }
+    `}</style>
+  );
+
+  const landingWarning = (
+    <div className="mt-10 border border-amber-500/25 bg-gradient-to-r from-amber-500/15 to-rose-500/10 rounded-2xl p-4 text-sm text-white/85">
+      <div className="font-semibold text-white/95">Nota important</div>
+      <div className="mt-1">
+        Això és un complement. No substitueix teràpia ni cap professional. Si estàs en crisi o tens idees d’autolesió:
+        <span className="font-semibold text-white"> 112 / 024</span>.
+      </div>
+    </div>
+  );
+
+  const inlineNote = (() => {
+    if (currentRisk.kind === "profanity") {
+      return (
+        <div className="mt-3 text-sm text-amber-200/85">
+          Nota: amb insults, l’informe perd precisió. Si vols un mirall que serveixi, reescriu-ho en llenguatge humà
+          (què sents, què tems, què vols fer).
+        </div>
+      );
+    }
+    if (currentRisk.kind === "violence_soft") {
+      return (
+        <div className="mt-3 text-sm text-amber-200/85">
+          Nota: has escrit contingut violent. Si és només etiqueta/fora de context, reescriu-ho amb emoció real (què sents, què et dispara).
+          Si és intenció o risc real, para aquí i demana suport.
+        </div>
+      );
+    }
+    if (currentRisk.level === "high") {
+      return (
+        <div className="mt-4 border border-rose-500/35 bg-gradient-to-r from-rose-500/20 to-amber-500/10 rounded-2xl p-4 text-white/90">
+          <div className="font-semibold text-white">Avís de seguretat</div>
+          <div className="mt-1 text-sm text-white/85">
+            Això que has escrit indica possible risc. Aquí no continuo amb “miralls”.
+            <br />
+            Si estàs en perill immediat: <span className="font-semibold">112</span>. A Espanya també tens el <span className="font-semibold">024</span>.
+            <br />
+            Si hi ha risc de fer mal a algú o a tu: busca suport professional o una persona de confiança ara.
+          </div>
+        </div>
+      );
+    }
+    return null;
+  })();
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {tremorStyle}
+
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="flex items-center justify-between no-print">
+          <div className="text-white/60 text-sm">Tremolor · V2</div>
+          <div className="flex items-center gap-3">
+            <div className="text-white/70 text-sm px-3 py-1 rounded-full border border-white/10 bg-white/5">
+              Progrés: {progress}%
+            </div>
+            <button
+              onClick={resetAll}
+              className="text-white/70 text-sm px-3 py-1 rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
+            >
+              Reiniciar
+            </button>
+          </div>
+        </div>
+
+        {view === "landing" && (
+          <div className="mt-10 bg-gradient-to-br from-purple-900/35 to-black border border-white/10 rounded-[28px] p-10">
+            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight leading-tight">
+              <span className="tremolorTitle">El tremolor</span>
+              <br />
+              continua…
+            </h1>
+
+            <div className="mt-6 text-white/70 text-lg space-y-2">
+              <div>Això no és un test de personalitat.</div>
+              <div>És una conversa amb les veus que ja coneixes però prefereixes no escoltar.</div>
+              <div className="text-white/60 mt-4">5 preguntes. 5 minuts. Cap resposta correcta. Només la teva veritat.</div>
+            </div>
+
+            <div className="mt-8 flex items-center gap-3">
+              <button
+                onClick={() => setView("questions")}
+                className="px-7 py-3 rounded-2xl bg-white text-black font-semibold hover:opacity-90"
+              >
+                Entrar →
+              </button>
+              <div className="text-white/60 text-sm px-4 py-2 rounded-full border border-white/10 bg-white/5">
+                Les respostes es queden al teu dispositiu
+              </div>
+            </div>
+
+            {landingWarning}
+          </div>
+        )}
+
+        {view === "questions" && (
+          <div className="mt-10">
+            <div className="flex items-center justify-between mb-4 no-print">
+              <button onClick={() => setView("landing")} className="text-white/70 hover:text-white">
+                ← Inici
+              </button>
+              <div className="text-white/50 text-sm">
+                {activeIdx + 1}/{NIGHTS.length}
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-900/25 to-black border border-white/10 rounded-[28px] p-8">
+              <div className="text-white/50 text-sm tracking-wider">{currentNight.label}</div>
+              <h2 className="text-2xl sm:text-3xl font-bold mt-2">{currentNight.question}</h2>
+
+              <div className="mt-6 no-print">
+                <div className="text-white/50 text-sm mb-2">Per començar (si el cap fa soroll):</div>
+                <div className="flex flex-wrap gap-2">
+                  {currentNight.starters.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => insertStarter(s)}
+                      className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 text-sm"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <textarea
+                  ref={textareaRef}
+                  value={answers[currentNight.id]}
+                  onChange={(e) => setAnswers((p) => ({ ...p, [currentNight.id]: e.target.value }))}
+                  rows={6}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 focus:border-white/25 outline-none p-4 text-white/90 placeholder:text-white/30"
+                  placeholder="Escriu-ho com et surti. Després ja hi haurà ordre."
+                />
+                {inlineNote}
+              </div>
+
+              <div className="mt-6 flex items-center justify-between no-print">
+                <button
+                  onClick={goPrev}
+                  disabled={activeIdx === 0}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 disabled:opacity-30"
+                >
+                  ← Enrere
+                </button>
+
+                <button
+                  onClick={goNext}
+                  disabled={currentRisk.level === "high"}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 font-semibold disabled:opacity-40"
+                >
+                  {activeIdx === NIGHTS.length - 1 ? "Veure informe →" : "Següent →"}
+                </button>
+              </div>
+
+              {currentRisk.level === "high" && (
+                <div className="mt-3 text-white/70 text-sm">
+                  No continuo mentre això estigui aquí. No per moral: per seguretat.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {view === "safety" && (
+          <div className="mt-10 border border-rose-500/35 bg-gradient-to-br from-rose-500/15 to-black rounded-[28px] p-10">
+            <h2 className="text-3xl font-extrabold">Abans de tot: seguretat</h2>
+            <p className="text-white/85 mt-3">
+              He detectat contingut que pot indicar risc (autolesió/suïcidi/violència). Aquí no genero informe ni “miralls”.
+            </p>
+            <div className="mt-4 text-white/85">
+              Si estàs en perill immediat: <span className="font-semibold">112</span>. A Espanya també tens el <span className="font-semibold">024</span>.
+            </div>
+            <div className="mt-5 text-white/75">
+              Si el que has escrit era “provocació” o una etiqueta, reescriu-ho amb emoció real (què sents / què et dispara / què necessites).
+              Si és real, busca suport professional o una persona de confiança ara.
+            </div>
+
+            <div className="mt-8 flex gap-3 no-print">
+              <button
+                onClick={() => setView("questions")}
+                className="px-6 py-3 rounded-2xl bg-white text-black font-semibold hover:opacity-90"
+              >
+                Tornar i reescriure
+              </button>
+              <button
+                onClick={resetAll}
+                className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10"
+              >
+                Reiniciar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view === "report" && (
+          <div className="mt-10">
+            <div className="flex items-center justify-between no-print mb-5">
+              <button onClick={() => setView("questions")} className="text-white/70 hover:text-white">
+                ← Editar respostes
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={exportTxt}
+                  className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10"
+                >
+                  TXT
+                </button>
+                <button
+                  onClick={exportWord}
+                  className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10"
+                >
+                  Word
+                </button>
+                <button
+                  onClick={printPdf}
+                  className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10"
+                >
+                  Imprimir / PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-900/25 to-black border border-white/10 rounded-[28px] p-8">
+              <h2 className="text-2xl font-bold">El teu informe</h2>
+              <p className="text-white/70 mt-2">
+                Cinc nits. Cinc miralls. No està “bé” ni “malament”. Està escrit. I això ja és un canvi.
+              </p>
+
+              <div className="mt-8 space-y-8">
+                {NIGHTS.map((night) => {
+                  const a = (answers[night.id] || "").trim();
+                  const m = buildMirror(night, a);
+
+                  return (
+                    <div key={night.id} className="border border-white/10 rounded-2xl p-6 bg-black/25">
+                      <div className="text-white/50 text-sm tracking-wider">{night.label}</div>
+                      <div className="text-white font-semibold text-xl mt-2">{night.question}</div>
+
+                      <div className="mt-4 text-white/50 text-sm">El que has escrit</div>
+                      <div className="mt-2 rounded-xl bg-black/35 border border-white/10 p-4 text-white/90">
+                        {a || "—"}
+                      </div>
+
+                      <div className="mt-5 text-white/50 text-sm">Mirall (reformulat)</div>
+                      <div className="mt-2 rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-900/30 to-black p-5">
+                        <div className="text-white/90 leading-relaxed space-y-2">
+                          <p>{m.frame}</p>
+                          <p className="text-white/85">{m.anchorLine}</p>
+                          <p className="text-white/80">{m.reading}</p>
+
+                          <p className="mt-4">
+                            <span className="text-amber-300 font-semibold">Traducció:</span>{" "}
+                            <span className="text-white/85">{m.translation}</span>
+                          </p>
+
+                          <p className="mt-4 font-semibold text-white">{m.question}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-10 bg-gradient-to-br from-purple-900/35 to-black border border-white/10 rounded-[28px] p-10">
+              <h3 className="text-4xl font-extrabold">I ara què?</h3>
+              <div className="mt-5 text-white/75 text-lg space-y-3">
+                <p>
+                  Tens dues opcions: guardar-ho com un souvenir i tornar al soroll… o fer el moviment petit que et costa.
+                </p>
+                <p>
+                  No et prometo motivació. Et prometo una cosa pitjor: <span className="text-white/90 font-semibold">claredat</span>.
+                  La claredat és el que et treu excuses.
+                </p>
+                <p className="text-white/85">
+                  El següent nivell és quan això deixa de ser “m’ha ressonat” i passa a ser “m’hi poso”. Sense fum. Amb mapa.
+                </p>
+              </div>
+
+              <div className="mt-8 flex items-center justify-between gap-6">
+                <div>
+                  <div className="text-2xl font-bold">El Tremolor Complet</div>
+                  <div className="text-white/60 mt-1">7 dies + profunditat + el que no s’escriu quan tens por de mirar-ho</div>
+                </div>
+                <button
+                  className="px-10 py-5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-xl font-semibold no-print"
+                  onClick={() => alert("CTA placeholder — connecta aquí el flux del Nivell Complet")}
+                >
+                  No em vull escapar
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center text-white/40 text-sm">
+              EdmondSystems · Tremolor (V2) — Les respostes es queden al teu dispositiu
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

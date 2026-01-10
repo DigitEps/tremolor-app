@@ -11,9 +11,9 @@ type Answer = {
   createdAt: string;
 };
 
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 // UTILITATS
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 
 function norm(s?: string) {
   return (s ?? "").toLowerCase().normalize("NFC");
@@ -21,12 +21,12 @@ function norm(s?: string) {
 
 function trimLen(s: string, n = 200) {
   const t = (s || "").trim();
-  return t.length > n ? t.slice(0, n - 1) + "…" : t;
+  return t.length > n ? t.slice(0, n - 1) + "�?�" : t;
 }
 
 function capitalize(s: string) {
   const t = (s || "").trim();
-  if (!t) return "—";
+  if (!t) return "�?"";
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
@@ -56,14 +56,14 @@ function statsFrom(answers: Answer[]) {
   });
 
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  const dominantVoice = entries[0]?.[0] || "—";
+  const dominantVoice = entries[0]?.[0] || "�?"";
 
   return { total, completed, progress, counts, dominantVoice };
 }
 
-// ─────────────────────────────────────────────────────────────
-// DETECCIÓ DE PATRONS
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+// DETECCI�" DE PATRONS
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 
 interface Patterns {
   clown: boolean;
@@ -106,15 +106,15 @@ function detectPatterns(answers: Answer[]): Patterns {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
-// GENERACIÓ INFORME TXT (TO TREMOLOR)
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+// GENERACI�" INFORME TXT (TO TREMOLOR)
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 
 function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
   const st = statsFrom(answers);
 
-  // IMPORTANT: evitem el “demo vibe”. Si falta alguna resposta clau, millor “—”.
-  const fallback = "—";
+  // IMPORTANT: evitem el �?odemo vibe�?�. Si falta alguna resposta clau, millor �?o�?"�?�.
+  const fallback = "�?"";
 
   const mask = trimLen(pickLast(answers, "màscara"), 150) || fallback;
   const loop = trimLen(pickLast(answers, "loop"), 150) || fallback;
@@ -124,59 +124,59 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
   const lines: string[] = [];
 
   // Header
-  lines.push("╔══════════════════════════════════════════════════════════════════╗");
-  lines.push("║                                                                  ║");
-  lines.push("║                    MAPA DEL TREMOLOR                             ║");
-  lines.push("║                    El teu informe                                ║");
-  lines.push("║                                                                  ║");
-  lines.push("╚══════════════════════════════════════════════════════════════════╝");
+  lines.push("�."�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.-");
+  lines.push("�.'                                                                  �.'");
+  lines.push("�.'                    MAPA DEL TREMOLOR                             �.'");
+  lines.push("�.'                    El teu informe                                �.'");
+  lines.push("�.'                                                                  �.'");
+  lines.push("�.s�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
   lines.push(`Progrés: ${st.progress}%  ·  Respostes: ${st.completed}/${st.total}  ·  Veu dominant: ${capitalize(st.dominantVoice)}`);
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
-  lines.push("Això no és un test de personalitat. És un mirall.");
+  lines.push("Això no és un test de personalitat. �?s un mirall.");
   lines.push("I els miralls no et volen fer sentir bé.");
   lines.push("Et volen fer RESPONSABLE.");
   lines.push("");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("  NOTA IMPORTANT");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
   lines.push("Això NO substitueix teràpia, medicació ni cap professional.");
   lines.push("Si estàs en crisi o tens idees d'autolesió: PARA AQUÍ.");
   lines.push("Parla amb un psicòleg, psiquiatre o metge. Demana ajuda.");
   lines.push("Això és un complement. Un cop de llum. No una sala d'urgències.");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
 
   // 4 Miralls
   lines.push("EL QUE HAS REVELAT (4 miralls)");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
-  lines.push("🎭 LA TEVA MÀSCARA");
+  lines.push("�YZ� LA TEVA M�?SCARA");
   lines.push(`   "${mask}"`);
-  lines.push("   No és qui ets. És el que fas perquè no et vegin.");
+  lines.push("   No és qui ets. �?s el que fas perquè no et vegin.");
   lines.push("");
-  lines.push("🔄 EL LOOP QUE ES REPETEIX");
+  lines.push("�Y"" EL LOOP QUE ES REPETEIX");
   lines.push(`   "${loop}"`);
-  lines.push("   La teva rutina no és vida. És un mecanisme per no sentir.");
+  lines.push("   La teva rutina no és vida. �?s un mecanisme per no sentir.");
   lines.push("");
-  lines.push("💔 LA FERIDA QUE PROTEGEIXES");
+  lines.push("�Y'" LA FERIDA QUE PROTEGEIXES");
   lines.push(`   "${fear}"`);
-  lines.push("   Això no és debilitat. És la factura d'anys fent veure que no passa res.");
+  lines.push("   Això no és debilitat. �?s la factura d'anys fent veure que no passa res.");
   lines.push("");
-  lines.push("👁 QUI ETS QUAN NINGÚ MIRA");
+  lines.push("�Y'� QUI ETS QUAN NING�s MIRA");
   lines.push(`   "${whoAlone}"`);
   lines.push("   Aquí hi ha la veritat. I fa ràbia. Perquè és simple.");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
 
   // Veritat incòmoda
-  lines.push("UNA VERITAT INCÒMODA (però reversible)");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("UNA VERITAT INC�'MODA (però reversible)");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
   lines.push("No estàs condemnat. Però tampoc estàs \"bloquejat\".");
   lines.push("Estàs REPETINT.");
@@ -186,12 +186,12 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
   lines.push("Perquè el preu alt JA EL PAGUES ARA:");
   lines.push("en energia, en soroll i en autoengany.");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
 
   // 3 Accions
   lines.push("3 ACCIONS PER AVUI (no demà, avui)");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
 
   // Acció 1
@@ -214,15 +214,15 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
     lines.push("   · \"No em va bé aquest to. Parlem bé o no parlem.\"");
   }
   lines.push("");
-  lines.push("   👉 No és agressiu. És HIGIENE.");
+  lines.push("   �Y'? No és agressiu. �?s HIGIENE.");
   lines.push("");
 
   // Acció 2
-  lines.push("2) REGLA 10' — comença i prou");
+  lines.push("2) REGLA 10' �?" comença i prou");
   lines.push("");
   if (patterns.postpone) {
     lines.push("   Tu que sempre dius \"demà\":");
-    lines.push("   · 10' fent AIXÒ que portes posposant. Ara.");
+    lines.push("   · 10' fent AIX�' que portes posposant. Ara.");
     lines.push("   · No tot. Només 10 minuts. I veus què passa.");
   } else if (patterns.selfDestruct) {
     lines.push("   Tu que creus que has de destruir-te per canviar:");
@@ -236,7 +236,7 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
     lines.push("   · 10' escriure el que estàs evitant en 5 línies.");
   }
   lines.push("");
-  lines.push("   👉 El teu cervell negocia. Tu no.");
+  lines.push("   �Y'? El teu cervell negocia. Tu no.");
   lines.push("");
 
   // Acció 3
@@ -246,7 +246,7 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
     lines.push("   Tu que t'amagues perquè ser vist fa mal:");
     lines.push("   · Un missatge honest. Sense excuses. Curt.");
     lines.push("   · \"Em costa. Necessito parlar 10 minuts.\"");
-    lines.push("   · Deixa que et vegin. Només una mica. És un múscul.");
+    lines.push("   · Deixa que et vegin. Només una mica. �?s un múscul.");
   } else if (patterns.failure) {
     lines.push("   Tu que creus que ets un fracàs:");
     lines.push("   · Diu en veu alta: \"He fracassat en X. I segueixo aquí.\"");
@@ -259,46 +259,46 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
     lines.push("   · A la feina: \"Això ho puc fer, això no. I no em disculpo per existir.\"");
   }
   lines.push("");
-  lines.push("   👉 Visibilitat no és drama. És CLAREDAT.");
+  lines.push("   �Y'? Visibilitat no és drama. �?s CLAREDAT.");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
 
   // Pla 7 dies
   lines.push("PLA 7 DIES (sense poesia, amb efecte)");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
-  lines.push("DIA 1 — NO + 10' acció");
+  lines.push("DIA 1 �?" NO + 10' acció");
   lines.push("   Un límit petit + una acció petita. Sense explicacions eternes.");
   lines.push("");
-  lines.push("DIA 2 — Talla 1 anestèsia 24h");
+  lines.push("DIA 2 �?" Talla 1 anestèsia 24h");
   lines.push("   Pantalla / sucre / tabac / alcohol: UNA. Només 24h.");
-  lines.push("   No és moral. És veure qui mana.");
+  lines.push("   No és moral. �?s veure qui mana.");
   lines.push("");
-  lines.push("DIA 3 — 1 límit en 1 frase");
+  lines.push("DIA 3 �?" 1 límit en 1 frase");
   lines.push("   Curt. Ferm. Educat.");
   lines.push("   \"Ho entenc, però no ho faré.\"");
   lines.push("");
-  lines.push("DIA 4 — 10' ordre (objecte/espai)");
+  lines.push("DIA 4 �?" 10' ordre (objecte/espai)");
   lines.push("   Un objecte o un espai = una ment menys bruta.");
   lines.push("");
-  lines.push("DIA 5 — Frase far (1 línia) + 10' pas");
+  lines.push("DIA 5 �?" Frase far (1 línia) + 10' pas");
   lines.push("   Far: \"Aquesta setmana trio X.\"");
   lines.push("   Pas: una acció que ho demostri.");
   lines.push("");
-  lines.push("DIA 6 — Acte de visibilitat");
+  lines.push("DIA 6 �?" Acte de visibilitat");
   lines.push("   Una conversa o un missatge que portes dies evitant.");
   lines.push("");
-  lines.push("DIA 7 — Revisió brutal (sense fuet)");
+  lines.push("DIA 7 �?" Revisió brutal (sense fuet)");
   lines.push("   Què has evitat? Per què?");
   lines.push("   I quina excusa t'ha sonat més \"intel·ligent\"?");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
 
   // Tancament
-  lines.push("I ARA, ESCOLTA AIXÒ");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("I ARA, ESCOLTA AIX�'");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
   lines.push("Sí, t'he parlat dur.");
   lines.push("Perquè algú havia de fer-ho.");
@@ -309,46 +309,46 @@ function buildInformeTremolor(answers: Answer[], patterns: Patterns): string {
   lines.push("Vol dir que VALS MASSA per seguir dormint.");
   lines.push("");
   lines.push("El tremolor que sents no és debilitat.");
-  lines.push("És la prova que alguna cosa vol néixer.");
+  lines.push("�?s la prova que alguna cosa vol néixer.");
   lines.push("");
   lines.push("No has de ser perfecte. No has de tenir-ho clar.");
   lines.push("Només has de fer el següent pas.");
   lines.push("Petit. Ara.");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
 
   // Respostes
   lines.push("LES TEVES RESPOSTES");
-  lines.push("──────────────────────────────────────────────────────────────────────");
+  lines.push("�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?");
   lines.push("");
   if (!answers?.length) {
     lines.push("(Encara no hi ha respostes guardades)");
   } else {
     answers.forEach((a, i) => {
       const q = (a.question || "").replace(/\s+/g, " ").trim();
-      const r = (a.response || "—").replace(/\s+/g, " ").trim();
+      const r = (a.response || "�?"").replace(/\s+/g, " ").trim();
       lines.push(`${i + 1}. ${q}`);
-      lines.push(`   → ${r}`);
+      lines.push(`   �?' ${r}`);
       lines.push("");
     });
   }
 
   // Footer
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
   lines.push("");
   lines.push("                       El tremolor continua.");
   lines.push("");
-  lines.push("                       — EdmondSystems · Tremolor");
+  lines.push("                       �?" EdmondSystems · Tremolor");
   lines.push("");
-  lines.push("══════════════════════════════════════════════════════════════════════");
+  lines.push("�.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.�");
 
   return lines.join("\n");
 }
 
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 // FUNCIONS UI
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 
 function downloadText(filename: string, content: string) {
   const BOM = "\uFEFF";
@@ -363,9 +363,9 @@ function downloadText(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 // COMPONENT PRINCIPAL
-// ─────────────────────────────────────────────────────────────
+// �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 
 export default function InformePage() {
   const router = useRouter();
@@ -398,9 +398,9 @@ export default function InformePage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
+  // �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
   // MODE PORTA v2 (0/15 i parcial)
-  // ─────────────────────────────────────────────────────────────
+  // �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
   if (!isComplete) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-zinc-950 via-black to-zinc-950 text-white">
@@ -412,7 +412,7 @@ export default function InformePage() {
               onClick={() => router.push("/")}
               className="text-sm text-white/40 hover:text-white transition"
             >
-              ← Inici
+              �?� Inici
             </button>
           </div>
         </header>
@@ -432,7 +432,7 @@ export default function InformePage() {
                   onClick={goToQuiz}
                   className="px-8 py-4 bg-white text-black font-bold rounded-xl hover:bg-white/90 transition text-lg"
                 >
-                  Entrar →
+                  Entrar �?'
                 </button>
 
                 <p className="text-white/35 text-sm pt-2">
@@ -445,7 +445,7 @@ export default function InformePage() {
                   Tens el mirall a mitges
                 </h2>
                 <p className="text-white/60 text-base md:text-lg">
-                  Has fet <strong className="text-white">{stats.completed}/{stats.total}</strong>. El que falta és on l’Ombra s’amaga.
+                  Has fet <strong className="text-white">{stats.completed}/{stats.total}</strong>. El que falta és on l�?TOmbra s�?Tamaga.
                 </p>
 
                 {/* Progress bar */}
@@ -465,7 +465,7 @@ export default function InformePage() {
                   onClick={goToQuiz}
                   className="px-8 py-4 bg-white text-black font-bold rounded-xl hover:bg-white/90 transition text-lg"
                 >
-                  Continuar ({stats.completed}/{stats.total}) →
+                  Continuar ({stats.completed}/{stats.total}) �?'
                 </button>
 
                 <div className="pt-2">
@@ -484,11 +484,11 @@ export default function InformePage() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // INFORME COMPLET (15/15) — TAL QUAL (amb millores mínimes)
-  // ─────────────────────────────────────────────────────────────
+  // �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+  // INFORME COMPLET (15/15) �?" TAL QUAL (amb millores mínimes)
+  // �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
 
-  const fallback = "—";
+  const fallback = "�?"";
   const mask = trimLen(pickLast(answers, "màscara"), 150) || fallback;
   const loop = trimLen(pickLast(answers, "loop"), 150) || fallback;
   const fear = trimLen(pickLast(answers, "por") || pickLast(answers, "fracas"), 150) || fallback;
@@ -580,20 +580,20 @@ export default function InformePage() {
           '"Això no m\'encaixa. Passo."',
           '"No em va bé aquest to. Parlem bé o no parlem."',
         ],
-        nota: "No és agressiu. És higiene.",
+        nota: "No és agressiu. �?s higiene.",
       };
     }
     if (patterns.control) {
       return {
         title: 'Un "NO" petit (tu que controles tot)',
         examples: ['"Això ho delego. No ho superviso."', '"No opino. Fes-ho com vegis."', '"No és problema meu. Següent."'],
-        nota: "Deixar anar no és perdre. És respirar.",
+        nota: "Deixar anar no és perdre. �?s respirar.",
       };
     }
     return {
       title: 'Un "NO" petit on normalment diries "sí"',
       examples: ['"No puc avui. Ho fem demà."', '"Això no m\'encaixa. Passo."', '"No em va bé aquest to. Parlem bé o no parlem."'],
-      nota: "No és agressiu. És higiene.",
+      nota: "No és agressiu. �?s higiene.",
     };
   };
 
@@ -601,12 +601,12 @@ export default function InformePage() {
     if (patterns.postpone) {
       return {
         title: 'Regla 10\' (tu que sempre dius "demà")',
-        examples: ["10' fent AIXÒ que portes posposant. Ara.", "No tot. Només 10 minuts. I veus què passa."],
+        examples: ["10' fent AIX�' que portes posposant. Ara.", "No tot. Només 10 minuts. I veus què passa."],
         nota: "El demà no existeix. Només hi ha ara.",
       };
     }
     return {
-      title: "Regla 10' — comença i prou",
+      title: "Regla 10' �?" comença i prou",
       examples: ["10' caminar sense música (sí, sense anestèsia).", "10' ordenar un sol racó (no tota la casa).", "10' escriure el que estàs evitant en 5 línies."],
       nota: "El teu cervell negocia. Tu no.",
     };
@@ -617,7 +617,7 @@ export default function InformePage() {
       return {
         title: "Acte de visibilitat (tu que t'amagues)",
         examples: ["Un missatge honest. Sense excuses. Curt.", '"Em costa. Necessito parlar 10 minuts."', "Deixa que et vegin. Només una mica."],
-        nota: "Visibilitat no és drama. És claredat.",
+        nota: "Visibilitat no és drama. �?s claredat.",
       };
     }
     if (patterns.failure) {
@@ -630,7 +630,7 @@ export default function InformePage() {
     return {
       title: "Acte de visibilitat: una veritat o una ajuda",
       examples: ['A la parella: "Em fa por això. No em surt dir-ho bé, però és això."', 'A un amic: "Em costa. Necessito parlar 10 minuts."', 'A la feina: "Això ho puc fer, això no."'],
-      nota: "Visibilitat no és drama. És claredat.",
+      nota: "Visibilitat no és drama. �?s claredat.",
     };
   };
 
@@ -645,7 +645,7 @@ export default function InformePage() {
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold tracking-tight">Mapa del Tremolor</h1>
           <button onClick={() => router.push("/")} className="text-sm text-white/40 hover:text-white transition">
-            ← Inici
+            �?� Inici
           </button>
         </div>
       </header>
@@ -655,7 +655,7 @@ export default function InformePage() {
         <section className="text-center space-y-6">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">El teu informe</h2>
           <p className="text-lg text-white/50 max-w-xl mx-auto">
-            Això no és un test de personalitat. És un mirall.<br />
+            Això no és un test de personalitat. �?s un mirall.<br />
             I els miralls no et volen fer sentir bé.<br />
             <span className="text-white/80 font-medium">Et volen fer responsable.</span>
           </p>
@@ -699,25 +699,25 @@ export default function InformePage() {
           <div className="grid gap-4">
             {[
               {
-                icon: "🎭",
+                icon: "�YZ�",
                 label: "La teva màscara",
                 value: mask,
-                subtext: "No és qui ets. És el que fas perquè no et vegin.",
+                subtext: "No és qui ets. �?s el que fas perquè no et vegin.",
               },
               {
-                icon: "🔄",
+                icon: "�Y""",
                 label: "El loop que es repeteix",
                 value: loop,
-                subtext: "La teva rutina no és vida. És un mecanisme per no sentir.",
+                subtext: "La teva rutina no és vida. �?s un mecanisme per no sentir.",
               },
               {
-                icon: "💔",
+                icon: "�Y'"",
                 label: "La ferida que protegeixes",
                 value: fear,
-                subtext: "Això no és debilitat. És la factura d'anys fent veure que no passa res.",
+                subtext: "Això no és debilitat. �?s la factura d'anys fent veure que no passa res.",
               },
               {
-                icon: "👁",
+                icon: "�Y'�",
                 label: "Qui ets quan ningú mira",
                 value: whoAlone,
                 subtext: "Aquí hi ha la veritat. I fa ràbia. Perquè és simple.",
@@ -769,7 +769,7 @@ export default function InformePage() {
                     </li>
                   ))}
                 </ul>
-                <div className="text-amber-200/60 text-sm italic">👉 {accio.nota}</div>
+                <div className="text-amber-200/60 text-sm italic">�Y'? {accio.nota}</div>
               </div>
             ))}
           </div>
@@ -818,7 +818,7 @@ export default function InformePage() {
             </p>
             <p>
               El tremolor que sents no és debilitat.<br />
-              És la prova que alguna cosa vol néixer.
+              �?s la prova que alguna cosa vol néixer.
             </p>
             <p className="text-white/80 italic">
               No has de ser perfecte. No has de tenir-ho clar.<br />
@@ -849,7 +849,7 @@ export default function InformePage() {
               onClick={onCopy}
               className="px-6 py-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/15 transition"
             >
-              {copied ? "Copiat ✓" : "Copiar el mirall"}
+              {copied ? "Copiat �o"" : "Copiar el mirall"}
             </button>
           </div>
         </section>
@@ -893,7 +893,7 @@ export default function InformePage() {
             onClick={() => {
               if (window.confirm("Segur que vols esborrar les teves respostes i tornar a començar?")) {
                 localStorage.removeItem("tremor.answers.v1");
-                router.push("/preguntes");
+                router.push("/v2/pro");
               }
             }}
             className="text-white/30 hover:text-white/60 text-sm underline underline-offset-4 transition"
@@ -911,3 +911,4 @@ export default function InformePage() {
     </main>
   );
 }
+
