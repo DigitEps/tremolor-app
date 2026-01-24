@@ -123,7 +123,8 @@ type PatternId =
   | "DEPENDÈNCIA"
   | "ANESTÈSIA"
   | "JA_ES_TARD"
-  | "SENSE_DADES";
+  | "SENSE_DADES"
+  | "SENSE_PATRÓ_CLAR";
 
 type Pattern = {
   id: PatternId;
@@ -136,98 +137,98 @@ type Pattern = {
 
 const PATTERNS: Pattern[] = [
   {
+    id: "FUGIDA",
+    label: "FUGIDA",
+    keywords: ["demà", "ja ho faré", "em disperso", "no començo", "salto d'un projecte a un altre", "inacabats", "salto"],
+    risk: "Evites l'inici per por al compromís real.",
+    microAction: "5 minuts: fes la primera peça ridícula (inici).",
+    cutPhrase: "No et falta temps: et falta inici."
+  },
+  {
+    id: "AUTOEXIGÈNCIA",
+    label: "AUTOEXIGÈNCIA",
+    keywords: ["ha de ser perfecte", "no és prou bo", "refinar", "millorar", "perfecte", "treballant super però mai acaba"],
+    risk: "L'excel·lència es converteix en paralitzis.",
+    microAction: "Defineix \"prou bé\" abans de començar.",
+    cutPhrase: "Perfecció: la manera fina de no viure."
+  },
+  {
+    id: "DESVALORITZACIÓ",
+    label: "DESVALORITZACIÓ",
+    keywords: ["no valc", "fracàs", "tio seriós", "menysprear", "no se'm valora", "des d'infant", "menyspreu", "no em valoren"],
+    risk: "Acceptes menys del que mereixes per costum.",
+    microAction: "Fes 1 cosa petita i deixa prova (nota/captura).",
+    cutPhrase: "No ets menys: estàs cansat."
+  },
+  {
     id: "CONTROL",
     label: "CONTROL",
-    keywords: ["control", "perfecte", "ha de sortir", "si no ho faig jo"],
-    risk: "Controlar no és calma: és por amb uniforme.",
+    keywords: ["control", "perfecte", "ha de sortir", "si no ho faig jo", "ordre", "controlat"],
+    risk: "Exhauriment per mantenir una il·lusió d'ordre.",
     microAction: "Tria 1 cosa imperfecta avui i NO la corregeixis.",
     cutPhrase: "Controlar no és calma: és por amb uniforme."
   },
   {
     id: "APROVACIÓ",
     label: "APROVACIÓ",
-    keywords: ["vist", "no em respon", "què pensarà"],
-    risk: "Si has de convèncer, ja has perdut.",
+    keywords: ["vist", "no em respon", "què pensarà", "reconeixement", "agradar", "quedar bé"],
+    risk: "Perds la teva veu buscant aplaudiments.",
     microAction: "En un xat, respon en 1 frase i punt. Sense justificar.",
     cutPhrase: "Si has de convèncer, ja has perdut."
   },
   {
-    id: "FUGIDA",
-    label: "FUGIDA",
-    keywords: ["demà", "ja ho faré", "em disperso", "no començo"],
-    risk: "No et falta temps: et falta inici.",
-    microAction: "5 minuts: fes la primera peça ridícula (inici).",
-    cutPhrase: "No et falta temps: et falta inici."
-  },
-  {
-    id: "CULPA",
-    label: "CULPA",
-    keywords: ["culpa", "no valc", "sóc", "fracàs"],
-    risk: "La culpa no arregla res: només et manté sotmès.",
-    microAction: "Escriu \"em perdono per ___\" + 1 acció reparadora petita.",
-    cutPhrase: "La culpa no arregla res: només et manté sotmès."
-  },
-  {
-    id: "DESVALORITZACIÓ",
-    label: "DESVALORITZACIÓ",
-    keywords: ["no valc", "fracàs"],
-    risk: "No ets menys: estàs cansat.",
-    microAction: "Fes 1 cosa petita i deixa prova (nota/captura).",
-    cutPhrase: "No ets menys: estàs cansat."
-  },
-  {
-    id: "RÀBIA_CONTINGUDA",
-    label: "RÀBIA CONTINGUDA",
-    keywords: ["ràbia", "m'ho callo", "aguanto"],
-    risk: "La ràbia callada es cobra interessos.",
-    microAction: "1 límit avui: \"Això no ho faré.\"",
-    cutPhrase: "La ràbia callada es cobra interessos."
-  },
-  {
     id: "POR_CONFLICTE",
     label: "POR AL CONFLICTE",
-    keywords: ["conflicte", "no vull problemes"],
-    risk: "Evitar el conflicte és comprar pau amb tu.",
+    keywords: ["conflicte", "no vull problemes", "espantar", "por del conflicte"],
+    risk: "Sacrifiques les teves necessitats per pau falsa.",
     microAction: "Practica 1 \"NO\" net (sense sucre).",
     cutPhrase: "Evitar el conflicte és comprar pau amb tu."
   },
   {
     id: "RUMIACIÓ",
     label: "RUMIACIÓ",
-    keywords: ["li dono voltes", "no paro de pensar"],
-    risk: "Pensar no és decidir.",
+    keywords: ["li dono voltes", "no paro de pensar", "rumio", "sempre pensant", "el cap fa soroll"],
+    risk: "Gastes energia mental sense avançar.",
     microAction: "3 minuts: escriu el bucle i tanca amb \"prou\".",
     cutPhrase: "Pensar no és decidir."
   },
   {
-    id: "AUTOEXIGÈNCIA",
-    label: "AUTOEXIGÈNCIA",
-    keywords: ["ha de ser perfecte", "no és prou bo"],
-    risk: "Perfecció: la manera fina de no viure.",
-    microAction: "Defineix \"prou bé\" abans de començar.",
-    cutPhrase: "Perfecció: la manera fina de no viure."
+    id: "CULPA",
+    label: "CULPA",
+    keywords: ["culpa", "no valc", "sóc", "fracàs", "m'ho mereixo", "hauria de", "per culpa meva"],
+    risk: "Vius en un bucle de càstig sense sortida.",
+    microAction: "Escriu \"em perdono per ___\" + 1 acció reparadora petita.",
+    cutPhrase: "La culpa no arregla res: només et manté sotmès."
+  },
+  {
+    id: "RÀBIA_CONTINGUDA",
+    label: "RÀBIA CONTINGUDA",
+    keywords: ["ràbia", "m'ho callo", "aguanto", "enfadat", "em bull", "exploto"],
+    risk: "Acumules ressentiment fins explotar.",
+    microAction: "1 límit avui: \"Això no ho faré.\"",
+    cutPhrase: "La ràbia callada es cobra interessos."
   },
   {
     id: "DEPENDÈNCIA",
     label: "DEPENDÈNCIA",
-    keywords: ["necessito", "m'ignora"],
-    risk: "Quan necessites, negocies la teva dignitat.",
+    keywords: ["necessito", "m'ignora", "em deixen", "no sóc important", "ningú em veu"],
+    risk: "La teva estabilitat depèn de l'humor dels altres.",
     microAction: "24h sense buscar resposta/reacció.",
     cutPhrase: "Quan necessites, negocies la teva dignitat."
   },
   {
     id: "ANESTÈSIA",
     label: "ANESTÈSIA",
-    keywords: ["m'és igual", "apagat", "no sento"],
-    risk: "El que no sents, et dirigeix.",
+    keywords: ["m'és igual", "apagat", "no sento", "desconnectat", "buit"],
+    risk: "Perds la capacitat de gaudir i connectar.",
     microAction: "2 minuts: on ho notes al cos? posa-li nom.",
     cutPhrase: "El que no sents, et dirigeix."
   },
   {
     id: "JA_ES_TARD",
     label: "JA ÉS TARD",
-    keywords: ["ja és tard", "massa gran", "no té sentit"],
-    risk: "Tard és morir. Avui encara hi ets.",
+    keywords: ["ja és tard", "massa gran", "no té sentit", "massa vell", "he perdut el tren"],
+    risk: "Renúncies als teus somnis per por al temps perdut.",
     microAction: "Acció mínima avui. No planis. Executa.",
     cutPhrase: "Tard és morir. Avui encara hi ets."
   }
@@ -235,6 +236,8 @@ const PATTERNS: Pattern[] = [
 
 function detectPattern(answer: string): Pattern {
   const t = normalize(answer);
+  
+  // SENSE_DADES només si el text està realment buit
   if (!t) return {
     id: "SENSE_DADES",
     label: "SENSE DADES",
@@ -244,21 +247,39 @@ function detectPattern(answer: string): Pattern {
     cutPhrase: "Sense text no hi ha diagnòstic."
   };
 
-  // Buscar coincidències amb keywords
+  // Prioritats: FUGIDA manda si hi ha keywords de procrastinació
+  const fugidaKeywords = ["demà", "ja ho faré", "salto"];
+  if (fugidaKeywords.some(keyword => t.includes(normalize(keyword)))) {
+    return PATTERNS.find(p => p.id === "FUGIDA")!;
+  }
+
+  // AUTOEXIGÈNCIA manda si hi ha keywords de perfeccionisme
+  const autoexigenciaKeywords = ["perfecte", "refinar", "millorar"];
+  if (autoexigenciaKeywords.some(keyword => t.includes(normalize(keyword)))) {
+    return PATTERNS.find(p => p.id === "AUTOEXIGÈNCIA")!;
+  }
+
+  // DESVALORITZACIÓ manda si hi ha keywords de menyspreu
+  const desvaloritKeywords = ["menyspreu", "no em valoren", "no se'm valora"];
+  if (desvaloritKeywords.some(keyword => t.includes(normalize(keyword)))) {
+    return PATTERNS.find(p => p.id === "DESVALORITZACIÓ")!;
+  }
+
+  // Buscar coincidències amb keywords (ordre dels patrons importa)
   for (const pattern of PATTERNS) {
     if (pattern.keywords.some(keyword => t.includes(normalize(keyword)))) {
       return pattern;
     }
   }
 
-  // Si no hi ha coincidències, retornar SENSE_DADES
+  // Si hi ha text però no hi ha match, retornar SENSE_PATRÓ_CLAR
   return {
-    id: "SENSE_DADES",
-    label: "SENSE DADES",
+    id: "SENSE_PATRÓ_CLAR",
+    label: "SENSE PATRÓ CLAR",
     keywords: [],
-    risk: "Sense dades: no hi ha mirall.",
-    microAction: "Escriu 2 línies avui, encara que et faci ràbia.",
-    cutPhrase: "Sense text no hi ha diagnòstic."
+    risk: "El patró no és evident amb aquestes paraules.",
+    microAction: "Escriu 3 línies més específiques sobre què sents.",
+    cutPhrase: "Fins i tot la confusió és informació."
   };
 }
 
