@@ -59,8 +59,12 @@ function normalize(s: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function normalizeApostrophes(text: string): string {
+  return text.replace(/[''ʼ`´]/g, "'");
+}
+
 function sanitizeForExport(s: string) {
-  return (s || "").replace(/\r/g, "").trim();
+  return normalizeApostrophes((s || "").replace(/\r/g, "").trim());
 }
 
 function hashSeed(s: string) {
@@ -105,55 +109,157 @@ function detectRisk(text: string): RiskLevel {
   return "none";
 }
 
-// ---------- patrons (Nivell A, sense IA) ----------
+// ---------- patrons (Nivell A, sense IA) - Sistema de 12 patrons ----------
 type PatternId =
-  | "postposar"
-  | "control"
-  | "exposicio"
-  | "validacio"
-  | "perfeccio"
-  | "culpa"
-  | "rumiacio"
-  | "victima"
-  | "abandono"
-  | "rabia"
-  | "default";
+  | "CONTROL"
+  | "APROVACIÓ"
+  | "FUGIDA"
+  | "CULPA"
+  | "DESVALORITZACIÓ"
+  | "RÀBIA_CONTINGUDA"
+  | "POR_CONFLICTE"
+  | "RUMIACIÓ"
+  | "AUTOEXIGÈNCIA"
+  | "DEPENDÈNCIA"
+  | "ANESTÈSIA"
+  | "JA_ES_TARD"
+  | "SENSE_DADES";
 
 type Pattern = {
   id: PatternId;
   label: string;
   keywords: string[];
+  risk: string;
+  microAction: string;
+  cutPhrase: string;
 };
 
 const PATTERNS: Pattern[] = [
-  { id: "postposar", label: "Postposar", keywords: ["demà", "mes endavant", "encara no toca", "ja ho fare", "ja ho faré", "no es el moment", "quan estigui", "quan estigui llest"] },
-  { id: "control", label: "Control", keywords: ["control", "controlat", "tot controlat", "ho controlo", "ordre", "no delego", "si no ho faig jo", "perfe"] },
-  { id: "exposicio", label: "Por d’exposar-me", keywords: ["exposar", "que em vegin", "que s'adonin", "que s’adonin", "que descobreixin", "no soc el que semblo", "m'amago", "m’amago"] },
-  { id: "validacio", label: "Validació", keywords: ["que em reconeguin", "reconeixement", "que soc bo", "que sóc bo", "aprovar", "agradar", "quedar be", "quedar bé"] },
-  { id: "perfeccio", label: "Perfeccionisme", keywords: ["perfecte", "error", "fallar", "fracassar", "equivoco", "m'equivoco", "si m'equivoco", "no serveixo", "inutil", "inútil"] },
-  { id: "culpa", label: "Culpa", keywords: ["culpa", "m'ho mereixo", "m’ho mereixo", "hauria", "hauria de", "per culpa meva", "soc un desastre", "sóc un desastre"] },
-  { id: "rumiacio", label: "Rumiació", keywords: ["no paro de pensar", "li dono voltes", "dono voltes", "rumio", "sempre pensant", "cap no para", "el cap fa soroll"] },
-  { id: "victima", label: "Víctima", keywords: ["sempre em passa", "tothom", "ningú", "m'ho fan", "m’ho fan", "es culpa dels altres", "és culpa dels altres"] },
-  { id: "abandono", label: "Abandó", keywords: ["sol", "solitud", "em deixen", "no soc important", "no sóc important", "ningú em veu", "oblidat", "oblit"] },
-  { id: "rabia", label: "Ràbia", keywords: ["rabia", "ràbia", "enfadat", "em bull", "exploto", "agressiu", "odi"] },
+  {
+    id: "CONTROL",
+    label: "CONTROL",
+    keywords: ["control", "perfecte", "ha de sortir", "si no ho faig jo"],
+    risk: "Controlar no és calma: és por amb uniforme.",
+    microAction: "Tria 1 cosa imperfecta avui i NO la corregeixis.",
+    cutPhrase: "Controlar no és calma: és por amb uniforme."
+  },
+  {
+    id: "APROVACIÓ",
+    label: "APROVACIÓ",
+    keywords: ["vist", "no em respon", "què pensarà"],
+    risk: "Si has de convèncer, ja has perdut.",
+    microAction: "En un xat, respon en 1 frase i punt. Sense justificar.",
+    cutPhrase: "Si has de convèncer, ja has perdut."
+  },
+  {
+    id: "FUGIDA",
+    label: "FUGIDA",
+    keywords: ["demà", "ja ho faré", "em disperso", "no començo"],
+    risk: "No et falta temps: et falta inici.",
+    microAction: "5 minuts: fes la primera peça ridícula (inici).",
+    cutPhrase: "No et falta temps: et falta inici."
+  },
+  {
+    id: "CULPA",
+    label: "CULPA",
+    keywords: ["culpa", "no valc", "sóc", "fracàs"],
+    risk: "La culpa no arregla res: només et manté sotmès.",
+    microAction: "Escriu \"em perdono per ___\" + 1 acció reparadora petita.",
+    cutPhrase: "La culpa no arregla res: només et manté sotmès."
+  },
+  {
+    id: "DESVALORITZACIÓ",
+    label: "DESVALORITZACIÓ",
+    keywords: ["no valc", "fracàs"],
+    risk: "No ets menys: estàs cansat.",
+    microAction: "Fes 1 cosa petita i deixa prova (nota/captura).",
+    cutPhrase: "No ets menys: estàs cansat."
+  },
+  {
+    id: "RÀBIA_CONTINGUDA",
+    label: "RÀBIA CONTINGUDA",
+    keywords: ["ràbia", "m'ho callo", "aguanto"],
+    risk: "La ràbia callada es cobra interessos.",
+    microAction: "1 límit avui: \"Això no ho faré.\"",
+    cutPhrase: "La ràbia callada es cobra interessos."
+  },
+  {
+    id: "POR_CONFLICTE",
+    label: "POR AL CONFLICTE",
+    keywords: ["conflicte", "no vull problemes"],
+    risk: "Evitar el conflicte és comprar pau amb tu.",
+    microAction: "Practica 1 \"NO\" net (sense sucre).",
+    cutPhrase: "Evitar el conflicte és comprar pau amb tu."
+  },
+  {
+    id: "RUMIACIÓ",
+    label: "RUMIACIÓ",
+    keywords: ["li dono voltes", "no paro de pensar"],
+    risk: "Pensar no és decidir.",
+    microAction: "3 minuts: escriu el bucle i tanca amb \"prou\".",
+    cutPhrase: "Pensar no és decidir."
+  },
+  {
+    id: "AUTOEXIGÈNCIA",
+    label: "AUTOEXIGÈNCIA",
+    keywords: ["ha de ser perfecte", "no és prou bo"],
+    risk: "Perfecció: la manera fina de no viure.",
+    microAction: "Defineix \"prou bé\" abans de començar.",
+    cutPhrase: "Perfecció: la manera fina de no viure."
+  },
+  {
+    id: "DEPENDÈNCIA",
+    label: "DEPENDÈNCIA",
+    keywords: ["necessito", "m'ignora"],
+    risk: "Quan necessites, negocies la teva dignitat.",
+    microAction: "24h sense buscar resposta/reacció.",
+    cutPhrase: "Quan necessites, negocies la teva dignitat."
+  },
+  {
+    id: "ANESTÈSIA",
+    label: "ANESTÈSIA",
+    keywords: ["m'és igual", "apagat", "no sento"],
+    risk: "El que no sents, et dirigeix.",
+    microAction: "2 minuts: on ho notes al cos? posa-li nom.",
+    cutPhrase: "El que no sents, et dirigeix."
+  },
+  {
+    id: "JA_ES_TARD",
+    label: "JA ÉS TARD",
+    keywords: ["ja és tard", "massa gran", "no té sentit"],
+    risk: "Tard és morir. Avui encara hi ets.",
+    microAction: "Acció mínima avui. No planis. Executa.",
+    cutPhrase: "Tard és morir. Avui encara hi ets."
+  }
 ];
 
 function detectPattern(answer: string): Pattern {
   const t = normalize(answer);
-  if (!t) return { id: "default", label: "Sense etiqueta", keywords: [] };
+  if (!t) return {
+    id: "SENSE_DADES",
+    label: "SENSE DADES",
+    keywords: [],
+    risk: "Sense dades: no hi ha mirall.",
+    microAction: "Escriu 2 línies avui, encara que et faci ràbia.",
+    cutPhrase: "Sense text no hi ha diagnòstic."
+  };
 
-  const scored = PATTERNS
-    .map((p) => {
-      const hits = p.keywords.filter((k) => t.includes(normalize(k))).length;
-      return { p, hits };
-    })
-    .sort((a, b) => b.hits - a.hits);
+  // Buscar coincidències amb keywords
+  for (const pattern of PATTERNS) {
+    if (pattern.keywords.some(keyword => t.includes(normalize(keyword)))) {
+      return pattern;
+    }
+  }
 
-  if (scored[0]?.hits > 0) return scored[0].p;
-
-  // heurístiques extra (sense keywords exactes)
-  if (/(sempre|mai|un altre cop)/.test(t)) return { id: "rumiacio", label: "Rumiació", keywords: [] };
-  return { id: "default", label: "Sense etiqueta", keywords: [] };
+  // Si no hi ha coincidències, retornar SENSE_DADES
+  return {
+    id: "SENSE_DADES",
+    label: "SENSE DADES",
+    keywords: [],
+    risk: "Sense dades: no hi ha mirall.",
+    microAction: "Escriu 2 línies avui, encara que et faci ràbia.",
+    cutPhrase: "Sense text no hi ha diagnòstic."
+  };
 }
 
 // ---------- resposta per nit + patró ----------
@@ -164,101 +270,49 @@ type MirrorOut = {
   questionPro: string;
 };
 
+function trimQuote(text: string, maxLen = 120): string {
+  const normalized = normalizeApostrophes(text.trim());
+  if (!normalized) return "";
+  
+  if (normalized.length <= maxLen) {
+    return normalized.endsWith('.') ? normalized : normalized + "…";
+  }
+  
+  return normalized.slice(0, maxLen - 1) + "…";
+}
+
 function buildMirror(night: Night, answerRaw: string): MirrorOut {
   const answer = sanitizeForExport(answerRaw);
   const p = detectPattern(answer);
-  const seed = `${night.id}::${p.id}::${answer}`;
+  
+  // Usar directament les dades del patró detectat
+  const quote = trimQuote(answer);
+  
+  // Construir el mirall amb les dades del patró
+  const mirror = answer ?
+    `"${quote}" — ${p.risk}` :
+    "Si no escrius res, el teu cervell decideix per tu. I normalment decideix evitar.";
 
-  // base per nit (curt, no “cafe per a tots”)
-  const baseByNight: Record<NightId, string[]> = {
-    n1: [
-      "Això que has escrit no és una idea: és un punt feble que ja has localitzat. I quan el veus, ja no pots dir que no ho sabies.",
-      "La porta s’obre quan deixes de negociar amb tu mateix. No cal drama: cal precisió.",
-    ],
-    n2: [
-      "La màscara et protegeix… i alhora et separa. El preu és silenciós: menys intimitat, menys descans.",
-      "Aparentar control és una manera elegant de no demanar ajuda.",
-    ],
-    n3: [
-      "Un loop no es trenca entenent-lo perfecte. Es trenca quan el talles 10 segons abans del de sempre.",
-      "Si es repeteix, és perquè et dona un benefici ocult. No és màgia: és hàbit.",
-    ],
-    n4: [
-      "Una ferida protegida sembla força… fins que t’ofega. La factura arriba en energia, paciència i cos.",
-      "No és debilitat. És un lloc que no has volgut mirar amb calma.",
-    ],
-    n5: [
-      "El pas petit no necessita motivació. Necessita un compromís curt i executable avui.",
-      "Si esperes seguretat absoluta, estàs comprant ajornament amb el nom de “prudència”.",
-    ],
-  };
-
-  // microaccions 24h per patró (mesurables)
-  const microByPattern: Record<PatternId, string[]> = {
-    postposar: [
-      "24h: Tria UNA cosa evitada i fes-ne el primer 2% (5 minuts). Posa temporitzador. Quan soni, pares. Però ho has començat.",
-      "24h: Escriu en 1 frase què faràs avui i envia-la a algú (o a tu mateix per WhatsApp). Sense explicar-te.",
-    ],
-    control: [
-      "24h: Fes 1 concessió petita al desordre (un 5%). No ho arreglis. Observa el cos 60 segons.",
-      "24h: Delegues UNA microdecisió (o demanes una opinió) i no la corregeixes després.",
-    ],
-    exposicio: [
-      "24h: Acte de visibilitat mínim: un missatge curt i honest (1 línia). Sense justificar. Exemple: “Em costa. Necessito 10 minuts.”",
-      "24h: Comparteix UNA veritat petita amb algú segur. No és confessió: és claredat.",
-    ],
-    validacio: [
-      "24h: Fes una acció bona i NO l’expliquis a ningú. Observa l’impuls de buscar reconeixement i deixa’l passar.",
-      "24h: Escriu: “Si ningú m’aplaudeix, què segueixo triant igualment?” i respon amb 2 línies.",
-    ],
-    perfeccio: [
-      "24h: Publica/entrega una cosa al 80% (petita). No l’optimitzis. El teu objectiu és acabar, no brillar.",
-      "24h: Fes una acció amb possibilitat d’error petit. Quan aparegui la por, respira 10 segons i continua.",
-    ],
-    culpa: [
-      "24h: Escriu 3 frases: (1) què et culpes, (2) què has intentat, (3) quin pas digne faràs igualment. Punt.",
-      "24h: Reemplaça un “hauria de” per un “avui trio”. I actua 5 minuts.",
-    ],
-    rumiacio: [
-      "24h: Regla 10’: camina 10 minuts sense música. Quan la ment parli, només posa etiqueta: “pensament”.",
-      "24h: Escriu el pensament repetitiu en 1 línia i talla’l amb una acció física de 2 minuts (aigua freda mans / flexions / estirament).",
-    ],
-    victima: [
-      "24h: Canvi de frase: de “m’ho fan” a “què permeto?”. Escriu 1 límit possible i practica’l en una frase.",
-      "24h: Identifica una cosa que sí controles avui (petita) i fes-la abans de les 12:00.",
-    ],
-    abandono: [
-      "24h: Quan notis el buit, no busquis immediatament resposta externa. Espera 10 minuts. Respira. Escriu què estàs demanant realment.",
-      "24h: Fes un acte d’autosuport: una acció que faries per algú estimat… però per tu.",
-    ],
-    rabia: [
-      "24h: Descàrrega segura: 90 segons de moviment intens (saltar / flexions). Després escriu 2 línies del que realment t’ha tocat.",
-      "24h: Tria una conversa i posa un límit amb to net (sense puny). Una frase.",
-    ],
-    default: [
-      "24h: Tria una microacció clara (5 minuts) i fes-la avui abans de dormir. Sense negociar.",
-      "24h: Escriu el pas petit en una frase i fes-lo immediatament durant 3 minuts.",
-    ],
-  };
-
+  const micro24h = p.microAction;
+  
+  // Preguntes PRO per nit
   const proQByNight: Record<NightId, string[]> = {
-    n1: ["Quina part de tu continua fent-se l’innocent… i què hi guanya?", "Què estàs protegint quan dius “ja ho faré”?" ],
-    n2: ["Què et costa cada setmana mantenir aquest paper en peu?", "Qui series si avui no haguessis de semblar res?" ],
-    n3: ["Quin és el primer segon on s’encén el loop?", "Quina recompensa secreta té repetir-ho?" ],
-    n4: ["Quin límit no has posat per por del conflicte?", "De què et protegeix aquesta ferida… exactament?" ],
-    n5: ["Quin és el ‘mínim digne’ d’avui, sense negociar?", "Què perdries si ho fessis bé… i ningú ho veiés?" ],
+    n1: ["Quina part de tu continua fent-se l'innocent… i què hi guanya?", "Què estàs protegint quan dius 'ja ho faré'?"],
+    n2: ["Què et costa cada setmana mantenir aquest paper en peu?", "Qui series si avui no haguessis de semblar res?"],
+    n3: ["Quin és el primer segon on s'encén el loop?", "Quina recompensa secreta té repetir-ho?"],
+    n4: ["Quin límit no has posat per por del conflicte?", "De què et protegeix aquesta ferida… exactament?"],
+    n5: ["Quin és el 'mínim digne' d'avui, sense negociar?", "Què perdries si ho fessis bé… i ningú ho veiés?"],
   };
 
-  const mirror = [
-    pick(seed + "::base", baseByNight[night.id]),
-    p.id === "default" ? "" : `Etiqueta: ${p.label}.`,
-    answer ? "" : "Si no escrius res, el teu cervell decideix per tu. I normalment decideix evitar.",
-  ].filter(Boolean).join(" ");
-
-  const micro24h = pick(seed + "::micro", microByPattern[p.id] || microByPattern.default);
+  const seed = `${night.id}::${p.id}::${answer}`;
   const questionPro = pick(seed + "::proq", proQByNight[night.id]);
 
-  return { patternLabel: p.id === "default" ? "—" : p.label, mirror, micro24h, questionPro };
+  return {
+    patternLabel: p.label,
+    mirror,
+    micro24h,
+    questionPro
+  };
 }
 
 // ---------- exports ----------
@@ -266,34 +320,34 @@ function buildReportTxt(answers: Record<NightId, string>) {
   const lines: string[] = [];
   lines.push("TREMOLOR · NIVELL A (5 NITS)");
   lines.push("");
-  lines.push("Cinc nits. Cinc miralls. No està “bé” ni “malament”. Està escrit. I això ja és un canvi.");
+  lines.push("Cinc nits. Cinc miralls. No està \"bé\" ni \"malament\". Està escrit. I això ja és un canvi.");
   lines.push("");
 
   for (const night of NIGHTS) {
     const a = sanitizeForExport(answers[night.id] || "");
-    const m = buildMirror(night, a);
+    const p = detectPattern(a);
+    const quote = trimQuote(a);
 
-    lines.push(night.label);
+    lines.push(`${night.label} — ${p.label}`);
     lines.push(night.question);
     lines.push("");
-    lines.push("EL QUE HAS ESCRIT:");
-    lines.push(a || "—");
+    if (quote) {
+      lines.push(`"${quote}"`);
+    } else {
+      lines.push("(Sense text)");
+    }
     lines.push("");
-    lines.push("MIRALL:");
-    lines.push(m.mirror);
-    lines.push("");
-    lines.push("MICROACCIÓ 24H:");
-    lines.push(m.micro24h);
-    lines.push("");
-    lines.push("PREGUNTA (PRO):");
-    lines.push(m.questionPro);
+    lines.push(`Risc: ${p.risk}`);
+    lines.push(`Microacció 24h: ${p.microAction}`);
+    lines.push(`Tall: ${p.cutPhrase}`);
     lines.push("");
     lines.push("------------------------------------------------------------");
     lines.push("");
   }
 
-  lines.push("CTA:");
-  lines.push("Segueix amb el PRO (15 preguntes): /v2/pro");
+  lines.push("El tremolor continua.");
+  lines.push("");
+  lines.push("— EdmondSystems · Tremolor");
   lines.push("");
 
   return lines.join("\n");
@@ -307,26 +361,30 @@ function buildWordHtml(answers: Record<NightId, string>) {
       .replace(/>/g, "&gt;")
       .replace(/\n/g, "<br/>");
 
-  let html = `<!doctype html><html><head><meta charset="utf-8"/><title>Tremolor · Informe</title></head>
+  let html = `<!doctype html><html><head><meta charset="utf-8"/><title>Tremolor · Informe Nivell A</title></head>
   <body style="font-family: Arial, sans-serif; line-height:1.5;">
   <h1 style="margin:0 0 8px 0;">Tremolor · Nivell A (5 nits)</h1>
-  <div style="opacity:.75;margin-bottom:18px;">Cinc nits. Cinc miralls. No està “bé” ni “malament”. Està escrit. I això ja és un canvi.</div>`;
+  <div style="opacity:.75;margin-bottom:18px;">Cinc nits. Cinc miralls. No està "bé" ni "malament". Està escrit. I això ja és un canvi.</div>`;
 
   for (const night of NIGHTS) {
     const a = sanitizeForExport(answers[night.id] || "");
-    const m = buildMirror(night, a);
+    const p = detectPattern(a);
+    const quote = trimQuote(a);
+    
     html += `
-      <h2 style="margin:18px 0 6px 0;">${esc(night.label)}</h2>
+      <h2 style="margin:18px 0 6px 0;">${esc(night.label)} — ${esc(p.label)}</h2>
       <div style="margin-bottom:10px;"><b>${esc(night.question)}</b></div>
-      <div style="margin-bottom:8px;opacity:.8;"><b>El que has escrit:</b><br/>${esc(a || "—")}</div>
-      <div style="margin-bottom:8px;"><b>Mirall:</b><br/>${esc(m.mirror)}</div>
-      <div style="margin-bottom:8px;"><b>Microacció 24h:</b><br/>${esc(m.micro24h)}</div>
-      <div style="margin-bottom:18px;"><b>Pregunta (PRO):</b><br/>${esc(m.questionPro)}</div>
+      <div style="margin-bottom:8px;opacity:.8;">
+        ${quote ? `"${esc(quote)}"` : "(Sense text)"}
+      </div>
+      <div style="margin-bottom:8px;"><b>Risc:</b> ${esc(p.risk)}</div>
+      <div style="margin-bottom:8px;"><b>Microacció 24h:</b> ${esc(p.microAction)}</div>
+      <div style="margin-bottom:18px;"><b>Tall:</b> ${esc(p.cutPhrase)}</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:18px 0;"/>
     `;
   }
 
-  html += `<p><b>Segueix amb el PRO:</b> /v2/pro</p></body></html>`;
+  html += `<p style="text-align:center;margin-top:30px;">El tremolor continua.<br/><small>— EdmondSystems · Tremolor</small></p></body></html>`;
   return html;
 }
 
@@ -601,28 +659,28 @@ export default function TremolorV2_NivellA() {
             <div className="mt-8 space-y-6">
               {NIGHTS.map((night) => {
                 const a = (answers[night.id] || "").trim();
-                const m = buildMirror(night, a);
+                const p = detectPattern(a);
+                const quote = trimQuote(a);
                 return (
                   <div key={night.id} className="border border-white/10 rounded-2xl p-6 bg-black/25">
-                    <div className="text-white/50 text-sm tracking-wider">{night.label}</div>
+                    <div className="text-white/50 text-sm tracking-wider">{night.label} — {p.label}</div>
                     <div className="text-white font-semibold text-xl mt-2">{night.question}</div>
 
                     <div className="mt-4 text-white/50 text-sm">El que has escrit</div>
                     <div className="mt-2 rounded-xl border border-white/10 bg-black/30 p-4 text-white/90">
-                      {a || "—"}
+                      {quote ? `"${quote}"` : "(Sense text)"}
                     </div>
 
-                    <div className="mt-5 text-white/50 text-sm">Mirall (útil)</div>
-                    <div className="mt-2 rounded-xl border border-purple-400/20 bg-purple-500/10 p-4">
-                      <div className="text-white/80 text-sm mb-2">
-                        Etiqueta: <b>{m.patternLabel}</b>
+                    <div className="mt-5 text-white/50 text-sm">Anàlisi determinista</div>
+                    <div className="mt-2 rounded-xl border border-purple-400/20 bg-purple-500/10 p-4 space-y-3">
+                      <div className="text-red-300">
+                        <b>Risc:</b> {p.risk}
                       </div>
-                      <div className="text-white/95">{m.mirror}</div>
-                      <div className="mt-4 text-white/80">
-                        <b>Microacció 24h:</b> {m.micro24h}
+                      <div className="text-amber-300">
+                        <b>Microacció 24h:</b> {p.microAction}
                       </div>
-                      <div className="mt-4 text-white/95 font-semibold">
-                        {m.questionPro}
+                      <div className="text-white/60 italic">
+                        &ldquo;{p.cutPhrase}&rdquo;
                       </div>
                     </div>
                   </div>
